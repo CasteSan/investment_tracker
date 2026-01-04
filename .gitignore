@@ -1,0 +1,23 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# Datos locales
+data/database.db
+data/*.db
+data/exports/
+data/benchmark_data/
+
+# Logs
+*.log

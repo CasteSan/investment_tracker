@@ -1,0 +1,106 @@
+# =============================================================================
+# COMMIT MESSAGE - SESIÓN 3: Portfolio Module + Fixes Multi-Divisa
+# =============================================================================
+# Ejecutar: git add . && git commit -F commit_session3.txt
+# =============================================================================
+
+feat(portfolio): Implementar módulo de análisis de cartera con soporte multi-divisa
+
+SESIÓN 3: Portfolio Module - Análisis completo de cartera y rentabilidades
+
+## 📦 NUEVOS ARCHIVOS
+
+### src/portfolio.py (~700 líneas)
+Módulo principal de análisis de cartera con:
+- Cálculo de posiciones actuales con FIFO
+- Plusvalías latentes y realizadas
+- Rentabilidad total y por activo
+- Distribución de cartera (por activo, tipo, sector)
+- Estadísticas avanzadas (volatilidad, correlaciones)
+- Funciones de conveniencia para visualización (print_positions, print_realized_gains)
+
+Características clave:
+- Soporte para campo `display_name` (muestra nombres en lugar de tickers)
+- Usa `realized_gain_eur` del CSV para B/P correcta en cualquier divisa
+- Cálculo correcto de "total invertido" (solo posiciones actuales, no histórico)
+
+### test_portfolio.py
+Suite de 8 tests que verifican:
+1. Posiciones actuales con nombres
+2. Divisas y mercados (EUR, USD, GBX, CAD)
+3. Plusvalías realizadas (verificación Tullow Oil = -143€, no -12,420€)
+4. Rentabilidad total
+5. Performance por activo
+6. Distribución de cartera
+7. Resumen completo
+8. Estadísticas
+
+## 🔧 ARCHIVOS MODIFICADOS
+
+### src/database.py (v2)
+Nuevos campos en modelo Transaction:
+- `currency` (String): EUR, USD, GBX, CAD, GBP
+- `market` (String): BME, NYSE, NASDAQ, LON, etc.
+- `realized_gain_eur` (Float): B/P de venta YA en EUR (del CSV)
+- `unrealized_gain_eur` (Float): B/P latente YA en EUR
+
+Nuevos métodos:
+- `get_currencies_used()`: Lista de divisas en la cartera
+- `get_markets_used()`: Lista de mercados
+- `clear_all_data(confirm)`: Limpia todas las tablas
+
+### src/data_loader.py (v2)
+Actualizado para importar campos nuevos:
+- Mapeo de columnas: currency, market, realized_gain_eur, unrealized_gain_eur
+- Parseo correcto de números negativos en formato europeo
+- Compatible con CSV generado por convert_investing_csv.py
+
+### scripts/convert_investing_csv.py (antes v4)
+Conversor completo de CSV de Investing.com:
+- Extrae columna "B/P neto" del CSV (ya convertida a EUR por Investing)
+- Guarda en campo `realized_gain_eur` para evitar errores de conversión
+- Detecta divisa según mercado (LON=GBX, NYSE/NASDAQ=USD, etc.)
+- Detecta tipo de activo (accion, fondo, etf)
+
+## 🐛 BUGS CORREGIDOS
+
+### Bug crítico: Tullow Oil mostraba -12,420€ en lugar de -143€
+- Causa: Precios en peniques (GBX) tratados como euros
+- Solución: Usar columna "B/P neto" del CSV que ya está en EUR
+- El conversor ahora extrae este valor y lo guarda en `realized_gain_eur`
+- portfolio.py usa este campo cuando está disponible
+
+### Bug: "Total invertido" mostraba 95,000€ en lugar de ~33,000€
+- Causa: Sumaba TODAS las compras históricas (incluso las ya vendidas)
+- Solución: Usar `get_total_cost_basis()` que calcula solo posiciones actuales
+- Ahora refleja correctamente cuánto costó adquirir lo que se tiene
+
+### Bug: Outputs mostraban tickers crípticos en lugar de nombres
+- Antes: LP68478350
+- Ahora: Fidelity S&P 500 Index Fund EUR P Acc
+- Añadido campo `display_name` en todos los outputs
+
+## 📊 RESULTADOS VERIFICADOS
+
+```
+Total invertido: 32,770€ (correcto, solo posiciones actuales)
+Valor actual: 33,277€
+Ganancia latente: +507€
+Ganancia realizada: -1,124€ (incluye Tullow Oil = -143€ correcto)
+Rentabilidad: -1.88%
+
+Divisas: EUR, USD, GBX, CAD
+Mercados: BME, NYSE, NASDAQ, LON, BIT, ETR, EPA, LU, IR, TSXV
+```
+
+## 💡 NOTAS TÉCNICAS
+
+- El esquema de la DB cambió: requiere eliminar database.db y reimportar
+- Flujo de trabajo: convert_investing_csv.py → data_loader.py → portfolio.py
+- Para activos en divisas extranjeras, confiar en B/P de Investing (ya en EUR)
+
+## 📋 PRÓXIMOS PASOS (Sesión 4)
+
+- Tax Calculator: Cálculos fiscales FIFO/LIFO configurables
+- Informe fiscal anual para declaración de la renta
+- Simulación de impacto fiscal antes de vender

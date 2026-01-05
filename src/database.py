@@ -1,12 +1,17 @@
 """
 Database Module - Gestión de Base de Datos SQLite
-Sesión 1 del Investment Tracker (Actualizado v2)
+Sesión 1 del Investment Tracker (Actualizado v3 - Soporte Dividendos Completo)
 
 CAMBIOS v2:
 - Añadido campo 'currency' para divisa de la transacción
 - Añadido campo 'market' para mercado de origen
 - Añadido campo 'realized_gain_eur' para ventas (B/P ya en EUR)
 - Añadido campo 'unrealized_gain_eur' para posiciones abiertas
+
+CAMBIOS v3:
+- Añadido método get_dividend_by_id()
+- Añadido método update_dividend()
+- Soporte completo para módulo dividends.py
 
 Este módulo gestiona toda la interacción con la base de datos SQLite.
 """
@@ -94,12 +99,12 @@ class Dividend(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticker = Column(String(50), nullable=False)
-    name = Column(String(200))  # NUEVO: nombre del activo
+    name = Column(String(200))  # nombre del activo
     date = Column(Date, nullable=False)
     gross_amount = Column(Float, nullable=False)
     net_amount = Column(Float, nullable=False)
     withholding_tax = Column(Float)  # Calculado: gross - net
-    currency = Column(String(10), default='EUR')  # NUEVO
+    currency = Column(String(10), default='EUR')
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
     
@@ -381,7 +386,20 @@ class Database:
     # =========================================================================
     
     def add_dividend(self, dividend_data: Dict) -> int:
-        """Añade un nuevo dividendo"""
+        """
+        Añade un nuevo dividendo.
+        
+        Args:
+            dividend_data: Dict con campos del dividendo
+                - ticker (requerido)
+                - date (requerido)
+                - gross_amount (requerido)
+                - net_amount (requerido)
+                - name, currency, notes (opcionales)
+        
+        Returns:
+            ID del dividendo creado
+        """
         if isinstance(dividend_data.get('date'), str):
             dividend_data['date'] = datetime.strptime(dividend_data['date'], '%Y-%m-%d').date()
         
@@ -395,16 +413,39 @@ class Database:
         
         return dividend.id
     
+    def get_dividend_by_id(self, dividend_id: int) -> Optional[Dividend]:
+        """
+        Obtiene un dividendo por su ID.
+        
+        Args:
+            dividend_id: ID del dividendo
+        
+        Returns:
+            Objeto Dividend o None si no existe
+        """
+        return self.session.query(Dividend).filter(Dividend.id == dividend_id).first()
+    
     def get_dividends(self, 
                      ticker: str = None,
                      year: int = None,
                      start_date: str = None,
                      end_date: str = None) -> List[Dividend]:
-        """Obtiene dividendos con filtros opcionales"""
+        """
+        Obtiene dividendos con filtros opcionales.
+        
+        Args:
+            ticker: Filtrar por ticker
+            year: Filtrar por año
+            start_date: Fecha inicio (YYYY-MM-DD)
+            end_date: Fecha fin (YYYY-MM-DD)
+        
+        Returns:
+            Lista de objetos Dividend
+        """
         query = self.session.query(Dividend)
         
         if ticker:
-            query = query.filter(Dividend.ticker == ticker)
+            query = query.filter(Dividend.ticker == ticker.upper())
         
         if year:
             from sqlalchemy import extract
@@ -422,8 +463,45 @@ class Database:
         
         return query.order_by(Dividend.date.desc()).all()
     
+    def update_dividend(self, dividend_id: int, update_data: Dict) -> bool:
+        """
+        Actualiza un dividendo existente.
+        
+        Args:
+            dividend_id: ID del dividendo
+            update_data: Dict con campos a actualizar
+        
+        Returns:
+            True si se actualizó correctamente, False si no existe
+        """
+        dividend = self.session.query(Dividend).filter(Dividend.id == dividend_id).first()
+        
+        if not dividend:
+            return False
+        
+        for key, value in update_data.items():
+            if hasattr(dividend, key):
+                if key == 'date' and isinstance(value, str):
+                    value = datetime.strptime(value, '%Y-%m-%d').date()
+                setattr(dividend, key, value)
+        
+        # Recalcular retención si se actualizan importes
+        if 'gross_amount' in update_data or 'net_amount' in update_data:
+            dividend.withholding_tax = dividend.gross_amount - dividend.net_amount
+        
+        self.session.commit()
+        return True
+    
     def delete_dividend(self, dividend_id: int) -> bool:
-        """Elimina un dividendo"""
+        """
+        Elimina un dividendo.
+        
+        Args:
+            dividend_id: ID del dividendo
+        
+        Returns:
+            True si se eliminó, False si no existía
+        """
         dividend = self.session.query(Dividend).filter(Dividend.id == dividend_id).first()
         
         if not dividend:
@@ -578,7 +656,7 @@ class Database:
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🧪 TEST DEL MÓDULO DATABASE v2")
+    print("🧪 TEST DEL MÓDULO DATABASE v3")
     print("="*60)
     
     # Crear base de datos de prueba
@@ -617,6 +695,30 @@ if __name__ == '__main__':
     })
     print(f"   ✅ Transacción GBX creada: ID {trans_id2}")
     
+    # Test: Añadir dividendo
+    print("\n💰 Test: Añadir dividendo")
+    div_id = db.add_dividend({
+        'ticker': 'TEF',
+        'name': 'Telefónica',
+        'date': '2024-06-15',
+        'gross_amount': 30.00,
+        'net_amount': 24.30,
+        'currency': 'EUR',
+        'notes': 'Dividendo semestral'
+    })
+    print(f"   ✅ Dividendo creado: ID {div_id}")
+    
+    # Test: Obtener dividendo por ID
+    print("\n📋 Test: Obtener dividendo por ID")
+    dividend = db.get_dividend_by_id(div_id)
+    if dividend:
+        print(f"   ✅ Encontrado: {dividend.ticker} - {dividend.net_amount}€")
+    
+    # Test: Actualizar dividendo
+    print("\n✏️  Test: Actualizar dividendo")
+    updated = db.update_dividend(div_id, {'notes': 'Dividendo semestral 2024'})
+    print(f"   ✅ Actualizado: {updated}")
+    
     # Test: Obtener transacciones
     print("\n📋 Test: Obtener transacciones")
     transactions = db.get_transactions()
@@ -629,12 +731,14 @@ if __name__ == '__main__':
     print("\n📊 Test: Estadísticas")
     stats = db.get_database_stats()
     print(f"   Total transacciones: {stats['total_transactions']}")
+    print(f"   Total dividendos: {stats['total_dividends']}")
     print(f"   Divisas: {db.get_currencies_used()}")
     print(f"   Mercados: {db.get_markets_used()}")
     
     # Limpiar test
     db.delete_transaction(trans_id1)
     db.delete_transaction(trans_id2)
+    db.delete_dividend(div_id)
     
     db.close()
     

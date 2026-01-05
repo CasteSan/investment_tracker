@@ -1,0 +1,161 @@
+# =============================================================================
+# COMMIT MESSAGE - SESIÓN 6: Benchmarks Module
+# =============================================================================
+# Ejecutar: git add . && git commit -F commit_session6.txt
+# =============================================================================
+
+feat(benchmarks): Implementar módulo completo de comparación con índices
+
+SESIÓN 6: Benchmarks Module - Análisis profesional de rendimiento
+
+## 📦 NUEVOS ARCHIVOS
+
+### src/benchmarks.py (~850 líneas)
+Módulo completo de comparación con benchmarks de mercado:
+
+**Gestión de Datos:**
+- download_benchmark(): Descarga datos de Yahoo Finance con yfinance
+- load_benchmark_from_csv(): Importación desde CSV
+- get_available_benchmarks(): Lista benchmarks en la DB
+- get_benchmark_series(): Serie temporal del benchmark
+
+**Benchmarks Predefinidos:**
+- SP500 (^GSPC): S&P 500
+- IBEX35 (^IBEX): IBEX 35
+- MSCI_WORLD (URTH): MSCI World ETF
+- EUROSTOXX50 (^STOXX50E): Euro Stoxx 50
+- NASDAQ100 (^NDX): NASDAQ 100
+- DAX (^GDAXI): DAX alemán
+- FTSE100 (^FTSE): FTSE 100 británico
+
+**Normalización y Comparación:**
+- normalize_to_base_100(): Normaliza series a base 100
+- compare_to_benchmark(): Comparación completa cartera vs benchmark
+- calculate_returns(): Rendimientos totales y anualizados
+- calculate_daily_returns(): Retornos diarios
+
+**Métricas de Riesgo:**
+- calculate_volatility(): Volatilidad anualizada
+- calculate_beta(): Beta respecto al benchmark
+- calculate_alpha(): Alpha de Jensen
+- calculate_tracking_error(): Tracking Error
+
+**Ratios Ajustados por Riesgo:**
+- calculate_sharpe_ratio(): Sharpe Ratio
+- calculate_sortino_ratio(): Sortino Ratio (solo downside)
+- calculate_calmar_ratio(): Calmar Ratio
+- calculate_information_ratio(): Information Ratio
+
+**Análisis de Drawdown:**
+- calculate_max_drawdown(): Máxima caída desde pico
+  - Incluye: peak_date, trough_date, recovery_date
+
+**Value at Risk:**
+- calculate_var(): VaR paramétrico (95% confianza)
+  - "Con 95% de confianza, no perderás más de X€ en Y días"
+
+**Resumen Completo:**
+- get_full_risk_metrics(): Todas las métricas en un solo Dict
+
+**Exportación:**
+- export_comparison(): Excel con 3 hojas (Datos, Rendimientos, Riesgo)
+
+**Funciones Print:**
+- print_available_benchmarks(): Lista benchmarks disponibles
+- print_comparison_summary(): Resumen de rendimientos
+- print_risk_metrics(): Métricas de riesgo con interpretación
+
+### test_benchmarks.py (~300 líneas)
+Suite de 13 tests:
+1. Verificar yfinance instalado
+2. Descargar S&P 500
+3. Listar benchmarks disponibles
+4. Obtener serie temporal
+5. Normalización base 100
+6. Cálculo de rendimientos
+7. Volatilidad
+8. Sharpe Ratio
+9. Maximum Drawdown
+10. Métricas completas de riesgo
+11. Descargar MSCI World
+12. Exportación a Excel
+13. Funciones de impresión
+
+## 📊 MÉTRICAS PROFESIONALES IMPLEMENTADAS
+
+| Métrica | Fórmula | Interpretación |
+|---------|---------|----------------|
+| **Volatilidad** | σ × √252 | Riesgo total anualizado |
+| **Beta** | Cov(P,B)/Var(B) | β>1 más volátil que mercado |
+| **Alpha** | Rp - [Rf + β(Rb-Rf)] | α>0 genera valor añadido |
+| **Sharpe** | (Rp-Rf)/σp | >1 bueno, >2 muy bueno |
+| **Sortino** | (Rp-Rf)/σdown | Solo penaliza caídas |
+| **Calmar** | Rp/MaxDD | Retorno por drawdown |
+| **Info Ratio** | Outperf/TE | >0.5 bueno, >1 excelente |
+| **Max Drawdown** | (Valle-Pico)/Pico | Peor caída histórica |
+| **VaR 95%** | μ + z×σ | Pérdida máx con 95% conf |
+
+## 📋 EJEMPLO DE USO
+
+```python
+from src.benchmarks import BenchmarkComparator
+
+bc = BenchmarkComparator()
+
+# Descargar datos del S&P 500 (último año)
+bc.download_benchmark('SP500', '2025-01-01', '2026-01-05')
+
+# Comparación con resumen
+bc.print_comparison_summary('SP500')
+
+# Métricas de riesgo completas
+bc.print_risk_metrics('SP500')
+
+# Exportar análisis a Excel
+bc.export_comparison('SP500', 'benchmark_analysis.xlsx')
+
+bc.close()
+```
+
+## 📊 OUTPUT DE EJEMPLO
+
+```
+📊 COMPARACIÓN: Mi Cartera vs SP500
+=====================================
+   Período: 2025-01-01 → 2026-01-05 (370 días)
+
+📈 RENDIMIENTOS
+   Mi Cartera:              +12.45%
+   SP500:                   +8.23%
+   Outperformance:          +4.22% ✅
+
+📉 RIESGO
+   Volatilidad Cartera:     15.20% anual
+   Volatilidad SP500:       18.50% anual
+   Beta:                    0.82
+   Tracking Error:          5.30%
+
+📊 MÉTRICAS DE RIESGO PROFESIONALES
+   Alpha (Jensen):          +3.15%
+   Sharpe Ratio:            0.65 (Bueno ✅)
+   Sortino Ratio:           0.89
+   Information Ratio:       0.80 (Bueno ✅)
+   Max Drawdown:            -8.50%
+
+⚠️ VALUE AT RISK (95%, 1 día)
+   VaR: 2.15% (687.50€)
+   📋 Con 95% de confianza, no perderás más de 2.15% (687.50€) en 1 día
+```
+
+## ✅ DEPENDENCIAS
+
+```bash
+pip install yfinance scipy
+# scipy es necesario para el cálculo del VaR
+```
+
+## 📋 PRÓXIMOS PASOS (Sesión 7+)
+
+- Streamlit UI: Dashboard interactivo
+- Gráficos con Plotly
+- Páginas: Dashboard, Operaciones, Análisis, Fiscal, Dividendos, Benchmarks

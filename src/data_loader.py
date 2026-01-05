@@ -1,557 +1,535 @@
 """
-Módulo de carga e importación de datos
-Permite importar transacciones desde CSV/Excel y exportar datos
+Data Loader Module - Importador/Exportador de Datos
+Sesión 2 del Investment Tracker (Actualizado v2)
+
+CAMBIOS v2:
+- Importa campos nuevos: currency, market, realized_gain_eur, unrealized_gain_eur
+- Compatible con CSV generado por convert_investing_csv_v4.py
+
+Este módulo gestiona la importación y exportación de datos desde/hacia
+archivos CSV y Excel.
 """
 
-import pandas as pd
-from pathlib import Path
+import csv
+import os
 from datetime import datetime
-import sys
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
 
-# Añadir directorio raíz al path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-from src.database import Database
-from config import EXPORTS_DIR, TRANSACTION_TYPES
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+
+try:
+    from src.database import Database
+except ImportError:
+    from database import Database
 
 
 class DataLoader:
     """
-    Clase para importar y exportar datos de transacciones
-    Soporta CSV y Excel con validación y mapeo flexible de columnas
+    Clase para importar y exportar datos de transacciones.
+    
+    Uso:
+        loader = DataLoader()
+        
+        # Importar desde CSV
+        result = loader.import_from_csv('mis_operaciones.csv')
+        print(f"Importadas: {result['success']}")
+        
+        # Exportar a CSV
+        loader.export_to_csv('backup.csv')
+        
+        loader.close()
     """
     
-    def __init__(self):
-        """Inicializa el cargador de datos"""
-        self.db = Database()
+    # Mapeo de columnas del CSV a campos de la base de datos
+    COLUMN_MAPPING = {
+        # Columnas estándar
+        'date': 'date',
+        'fecha': 'date',
+        'type': 'type',
+        'tipo': 'type',
+        'ticker': 'ticker',
+        'symbol': 'ticker',
+        'simbolo': 'ticker',
+        'name': 'name',
+        'nombre': 'name',
+        'asset_type': 'asset_type',
+        'tipo_activo': 'asset_type',
+        'quantity': 'quantity',
+        'cantidad': 'quantity',
+        'qty': 'quantity',
+        'price': 'price',
+        'precio': 'price',
+        'commission': 'commission',
+        'comision': 'commission',
+        'comisión': 'commission',
+        'total': 'total',
+        'notes': 'notes',
+        'notas': 'notes',
         
-        # Columnas esperadas (nombres estándar)
-        self.expected_columns = [
-            'date', 'type', 'ticker', 'name', 'asset_type',
-            'quantity', 'price', 'commission', 'notes'
+        # CAMPOS NUEVOS v2
+        'currency': 'currency',
+        'divisa': 'currency',
+        'market': 'market',
+        'mercado': 'market',
+        'realized_gain_eur': 'realized_gain_eur',
+        'bp_neto_eur': 'realized_gain_eur',
+        'ganancia_realizada': 'realized_gain_eur',
+        'unrealized_gain_eur': 'unrealized_gain_eur',
+        'bp_latente_eur': 'unrealized_gain_eur',
+        'ganancia_latente': 'unrealized_gain_eur',
+    }
+    
+    # Campos requeridos
+    REQUIRED_FIELDS = ['date', 'type', 'ticker', 'quantity', 'price']
+    
+    # Campos opcionales con valores por defecto
+    OPTIONAL_FIELDS = {
+        'name': None,
+        'asset_type': 'unknown',
+        'commission': 0.0,
+        'total': None,
+        'notes': None,
+        'currency': 'EUR',
+        'market': None,
+        'realized_gain_eur': None,
+        'unrealized_gain_eur': None,
+    }
+    
+    def __init__(self, db_path: str = None):
+        """
+        Inicializa el DataLoader.
+        
+        Args:
+            db_path: Ruta a la base de datos. Si es None, usa la ruta por defecto.
+        """
+        self.db = Database(db_path) if db_path else Database()
+    
+    def close(self):
+        """Cierra la conexión a la base de datos"""
+        self.db.close()
+    
+    def _normalize_column_name(self, column: str) -> str:
+        """Normaliza el nombre de una columna al formato interno"""
+        column_lower = column.lower().strip()
+        return self.COLUMN_MAPPING.get(column_lower, column_lower)
+    
+    def _parse_date(self, date_value: Any) -> str:
+        """Convierte varios formatos de fecha a YYYY-MM-DD"""
+        if date_value is None or date_value == '':
+            return None
+        
+        date_str = str(date_value).strip()
+        
+        # Formatos a probar
+        formats = [
+            '%Y-%m-%d',      # 2024-01-15
+            '%d/%m/%Y',      # 15/01/2024
+            '%d-%m-%Y',      # 15-01-2024
+            '%Y/%m/%d',      # 2024/01/15
+            '%d.%m.%Y',      # 15.01.2024
         ]
         
-        # Columnas obligatorias (mínimo necesario)
-        self.required_columns = ['date', 'type', 'ticker', 'quantity', 'price']
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+        
+        # Si es timestamp de pandas
+        if HAS_PANDAS:
+            try:
+                dt = pd.to_datetime(date_str)
+                return dt.strftime('%Y-%m-%d')
+            except:
+                pass
+        
+        return None
     
-    # ==========================================
-    # IMPORTACIÓN
-    # ==========================================
+    def _parse_number(self, value: Any) -> float:
+        """Convierte varios formatos numéricos a float"""
+        if value is None or value == '' or value == '--':
+            return 0.0
+        
+        if isinstance(value, (int, float)):
+            return float(value)
+        
+        value_str = str(value).strip()
+        
+        # Detectar negativo
+        is_negative = value_str.startswith('-') or (value_str.count('-') == 1 and not value_str.endswith('-'))
+        
+        # Limpiar caracteres
+        value_str = value_str.replace('€', '').replace('$', '').replace('%', '')
+        value_str = value_str.replace('£', '').replace(' ', '').strip()
+        value_str = value_str.replace('-', '').replace('+', '')
+        
+        # Formato europeo: 1.234,56 -> 1234.56
+        if '.' in value_str and ',' in value_str:
+            value_str = value_str.replace('.', '').replace(',', '.')
+        elif ',' in value_str:
+            value_str = value_str.replace(',', '.')
+        
+        try:
+            result = float(value_str)
+            return -result if is_negative else result
+        except ValueError:
+            return 0.0
     
-    def import_from_csv(self, file_path, column_mapping=None, validate=True, 
-                        skip_duplicates=True, delimiter=','):
+    def _parse_type(self, type_value: Any) -> str:
+        """Normaliza el tipo de transacción"""
+        if type_value is None:
+            return 'buy'
+        
+        type_str = str(type_value).lower().strip()
+        
+        type_mapping = {
+            'buy': 'buy',
+            'compra': 'buy',
+            'purchase': 'buy',
+            'sell': 'sell',
+            'venta': 'sell',
+            'sale': 'sell',
+            'transfer_in': 'transfer_in',
+            'traspaso_entrada': 'transfer_in',
+            'transfer_out': 'transfer_out',
+            'traspaso_salida': 'transfer_out',
+            'dividend': 'dividend',
+            'dividendo': 'dividend',
+        }
+        
+        return type_mapping.get(type_str, 'buy')
+    
+    def import_from_csv(self, 
+                       file_path: str,
+                       column_mapping: Dict[str, str] = None,
+                       validate: bool = True,
+                       skip_duplicates: bool = True) -> Dict:
         """
-        Importa transacciones desde archivo CSV
+        Importa transacciones desde un archivo CSV.
         
         Args:
             file_path: Ruta al archivo CSV
-            column_mapping: Dict para mapear nombres de columnas personalizados
-                Ejemplo: {'Fecha': 'date', 'Operación': 'type', 'Ticker': 'ticker'}
+            column_mapping: Mapeo adicional de columnas {columna_csv: campo_db}
             validate: Si True, valida datos antes de importar
-            skip_duplicates: Si True, omite transacciones duplicadas
-            delimiter: Separador del CSV (por defecto ',')
+            skip_duplicates: Si True, omite registros duplicados
         
         Returns:
-            Dict con resultados:
-            {
-                'success': int,           # Registros importados
-                'errors': List[str],      # Errores encontrados
-                'skipped': int,          # Duplicados omitidos
-                'total_processed': int   # Total procesado
-            }
+            Dict con:
+            - success: Número de registros importados
+            - errors: Lista de errores encontrados
+            - duplicates: Número de duplicados omitidos
+            - total: Total de filas procesadas
         """
-        print(f"\n📥 Importando desde CSV: {file_path}")
-        
-        # Verificar que el archivo existe
-        file_path = Path(file_path)
-        if not file_path.exists():
-            return {
-                'success': 0,
-                'errors': [f"Archivo no encontrado: {file_path}"],
-                'skipped': 0,
-                'total_processed': 0
-            }
-        
-        try:
-            # Leer CSV
-            df = pd.read_csv(file_path, delimiter=delimiter)
-            print(f"   📊 Leídas {len(df)} filas del CSV")
-            
-            # Aplicar mapeo de columnas si se proporciona
-            if column_mapping:
-                df = df.rename(columns=column_mapping)
-                print(f"   🔄 Aplicado mapeo de columnas")
-            
-            # Procesar DataFrame
-            return self._process_dataframe(df, validate, skip_duplicates)
-            
-        except Exception as e:
-            return {
-                'success': 0,
-                'errors': [f"Error al leer CSV: {str(e)}"],
-                'skipped': 0,
-                'total_processed': 0
-            }
-    
-    def import_from_excel(self, file_path, sheet_name=0, column_mapping=None, 
-                         validate=True, skip_duplicates=True):
-        """
-        Importa transacciones desde archivo Excel
-        
-        Args:
-            file_path: Ruta al archivo Excel
-            sheet_name: Nombre o índice de la hoja (0 por defecto = primera hoja)
-            column_mapping: Dict para mapear columnas
-            validate: Si True, valida datos
-            skip_duplicates: Si True, omite duplicados
-        
-        Returns:
-            Dict con resultados (igual que import_from_csv)
-        """
-        print(f"\n📥 Importando desde Excel: {file_path}")
-        
-        file_path = Path(file_path)
-        if not file_path.exists():
-            return {
-                'success': 0,
-                'errors': [f"Archivo no encontrado: {file_path}"],
-                'skipped': 0,
-                'total_processed': 0
-            }
-        
-        try:
-            # Leer Excel
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
-            print(f"   📊 Leídas {len(df)} filas del Excel (hoja: {sheet_name})")
-            
-            # Aplicar mapeo de columnas
-            if column_mapping:
-                df = df.rename(columns=column_mapping)
-                print(f"   🔄 Aplicado mapeo de columnas")
-            
-            # Procesar DataFrame
-            return self._process_dataframe(df, validate, skip_duplicates)
-            
-        except Exception as e:
-            return {
-                'success': 0,
-                'errors': [f"Error al leer Excel: {str(e)}"],
-                'skipped': 0,
-                'total_processed': 0
-            }
-    
-    def _process_dataframe(self, df, validate=True, skip_duplicates=True):
-        """
-        Procesa un DataFrame y guarda las transacciones en la base de datos
-        
-        Args:
-            df: pandas DataFrame con transacciones
-            validate: Si True, valida antes de guardar
-            skip_duplicates: Si True, omite duplicados
-        
-        Returns:
-            Dict con resultados de importación
-        """
-        results = {
+        result = {
             'success': 0,
             'errors': [],
-            'skipped': 0,
-            'total_processed': len(df)
+            'duplicates': 0,
+            'total': 0
         }
         
-        # Validar estructura si está habilitado
-        if validate:
-            validation_errors = self._validate_dataframe(df)
-            if validation_errors:
-                results['errors'].extend(validation_errors)
-                print(f"   ❌ Errores de validación encontrados: {len(validation_errors)}")
-                return results
+        file_path = Path(file_path)
         
-        # Normalizar columnas (minúsculas, sin espacios)
-        df.columns = df.columns.str.lower().str.strip()
+        if not file_path.exists():
+            result['errors'].append(f"Archivo no encontrado: {file_path}")
+            return result
+        
+        # Combinar mapeos
+        full_mapping = {**self.COLUMN_MAPPING}
+        if column_mapping:
+            full_mapping.update({k.lower(): v for k, v in column_mapping.items()})
+        
+        # Leer CSV
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+        except Exception as e:
+            result['errors'].append(f"Error leyendo CSV: {str(e)}")
+            return result
+        
+        result['total'] = len(rows)
+        
+        # Mapear columnas del CSV
+        if rows:
+            csv_columns = {self._normalize_column_name(col): col for col in rows[0].keys()}
         
         # Procesar cada fila
-        for idx, row in df.iterrows():
+        for i, row in enumerate(rows, 1):
             try:
-                # Convertir fila a dict
-                transaction_data = self._row_to_transaction(row)
+                # Crear diccionario con datos normalizados
+                transaction = {}
                 
-                # Verificar duplicados si está habilitado
-                if skip_duplicates and self._is_duplicate(transaction_data):
-                    results['skipped'] += 1
-                    continue
+                # Mapear columnas
+                for csv_col, csv_value in row.items():
+                    normalized = self._normalize_column_name(csv_col)
+                    if normalized in self.REQUIRED_FIELDS or normalized in self.OPTIONAL_FIELDS:
+                        transaction[normalized] = csv_value
                 
-                # Guardar en base de datos
-                self.db.add_transaction(transaction_data)
-                results['success'] += 1
+                # Parsear campos requeridos
+                transaction['date'] = self._parse_date(transaction.get('date'))
+                transaction['type'] = self._parse_type(transaction.get('type'))
+                transaction['ticker'] = str(transaction.get('ticker', '')).strip().upper()
+                transaction['quantity'] = self._parse_number(transaction.get('quantity'))
+                transaction['price'] = self._parse_number(transaction.get('price'))
+                
+                # Validar campos requeridos
+                if validate:
+                    if not transaction['date']:
+                        result['errors'].append(f"Fila {i}: Fecha inválida")
+                        continue
+                    if not transaction['ticker']:
+                        result['errors'].append(f"Fila {i}: Ticker vacío")
+                        continue
+                    if transaction['quantity'] <= 0:
+                        result['errors'].append(f"Fila {i}: Cantidad debe ser > 0")
+                        continue
+                    if transaction['price'] < 0:
+                        result['errors'].append(f"Fila {i}: Precio negativo")
+                        continue
+                
+                # Parsear campos opcionales
+                transaction['name'] = transaction.get('name', '').strip() or None
+                transaction['asset_type'] = transaction.get('asset_type', 'unknown').strip() or 'unknown'
+                transaction['commission'] = self._parse_number(transaction.get('commission', 0))
+                transaction['notes'] = transaction.get('notes', '').strip() or None
+                
+                # CAMPOS NUEVOS v2
+                transaction['currency'] = transaction.get('currency', 'EUR').strip() or 'EUR'
+                transaction['market'] = transaction.get('market', '').strip() or None
+                
+                # realized_gain_eur - IMPORTANTE para el cálculo correcto de plusvalías
+                realized_gain = transaction.get('realized_gain_eur')
+                if realized_gain is not None and realized_gain != '':
+                    transaction['realized_gain_eur'] = self._parse_number(realized_gain)
+                else:
+                    transaction['realized_gain_eur'] = None
+                
+                # unrealized_gain_eur - para posiciones abiertas
+                unrealized_gain = transaction.get('unrealized_gain_eur')
+                if unrealized_gain is not None and unrealized_gain != '':
+                    transaction['unrealized_gain_eur'] = self._parse_number(unrealized_gain)
+                else:
+                    transaction['unrealized_gain_eur'] = None
+                
+                # Calcular total si no está especificado
+                if not transaction.get('total'):
+                    qty = transaction['quantity']
+                    price = transaction['price']
+                    commission = transaction['commission']
+                    
+                    if transaction['type'] in ['buy', 'transfer_in']:
+                        transaction['total'] = qty * price + commission
+                    else:
+                        transaction['total'] = qty * price - commission
+                else:
+                    transaction['total'] = self._parse_number(transaction['total'])
+                
+                # Insertar en base de datos
+                self.db.add_transaction(transaction)
+                result['success'] += 1
                 
             except Exception as e:
-                results['errors'].append(f"Fila {idx + 2}: {str(e)}")
+                result['errors'].append(f"Fila {i}: {str(e)}")
         
-        # Resumen
-        print(f"\n   ✅ Importadas: {results['success']}")
-        print(f"   ⏭️  Omitidas (duplicados): {results['skipped']}")
-        print(f"   ❌ Errores: {len(results['errors'])}")
-        
-        return results
+        return result
     
-    def _validate_dataframe(self, df):
+    def export_to_csv(self, 
+                     file_path: str,
+                     filters: Dict = None,
+                     include_header: bool = True) -> bool:
         """
-        Valida que el DataFrame tenga la estructura correcta
-        
-        Returns:
-            Lista de errores (vacía si todo está bien)
-        """
-        errors = []
-        
-        # Normalizar nombres de columnas para la validación
-        df_columns = df.columns.str.lower().str.strip()
-        
-        # Verificar columnas obligatorias
-        for col in self.required_columns:
-            if col not in df_columns:
-                errors.append(f"Columna obligatoria faltante: '{col}'")
-        
-        if errors:
-            return errors
-        
-        # Validar tipos de datos básicos
-        for idx, row in df.iterrows():
-            row_num = idx + 2  # +2 porque Excel empieza en 1 y tiene header
-            
-            # Validar fecha
-            try:
-                date_val = row.get('date', row.get('fecha', None))
-                if pd.isna(date_val):
-                    errors.append(f"Fila {row_num}: Fecha vacía")
-            except:
-                errors.append(f"Fila {row_num}: Fecha inválida")
-            
-            # Validar quantity
-            try:
-                qty = float(row.get('quantity', row.get('cantidad', 0)))
-                if qty <= 0:
-                    errors.append(f"Fila {row_num}: Cantidad debe ser > 0")
-            except:
-                errors.append(f"Fila {row_num}: Cantidad inválida")
-            
-            # Validar price
-            try:
-                price = float(row.get('price', row.get('precio', 0)))
-                if price <= 0:
-                    errors.append(f"Fila {row_num}: Precio debe ser > 0")
-            except:
-                errors.append(f"Fila {row_num}: Precio inválido")
-            
-            # Detener si hay muchos errores (para no saturar)
-            if len(errors) > 10:
-                errors.append("... (más errores omitidos)")
-                break
-        
-        return errors
-    
-    def _row_to_transaction(self, row):
-        """
-        Convierte una fila de DataFrame a dict de transacción
+        Exporta transacciones a un archivo CSV.
         
         Args:
-            row: pandas Series (fila del DataFrame)
+            file_path: Ruta del archivo de salida
+            filters: Filtros para las transacciones (ticker, type, year, etc.)
+            include_header: Si True, incluye fila de encabezado
         
         Returns:
-            Dict con datos de transacción
+            True si la exportación fue exitosa
         """
-        # Función auxiliar para obtener valor (maneja diferentes nombres)
-        def get_value(row, *possible_names, default=None):
-            for name in possible_names:
-                if name in row and not pd.isna(row[name]):
-                    return row[name]
-            return default
-        
-        # Parsear fecha
-        date_val = get_value(row, 'date', 'fecha')
-        if isinstance(date_val, str):
-            # Intentar diferentes formatos
-            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']:
-                try:
-                    date_val = datetime.strptime(date_val, fmt).date()
-                    break
-                except:
-                    continue
-        elif isinstance(date_val, datetime):
-            date_val = date_val.date()
-        
-        # Construir dict de transacción
-        transaction = {
-            'date': date_val,
-            'type': get_value(row, 'type', 'tipo', 'operacion', default='buy').lower(),
-            'ticker': get_value(row, 'ticker', 'simbolo', default='').upper(),
-            'name': get_value(row, 'name', 'nombre'),
-            'asset_type': get_value(row, 'asset_type', 'tipo_activo'),
-            'quantity': float(get_value(row, 'quantity', 'cantidad', default=0)),
-            'price': float(get_value(row, 'price', 'precio', default=0)),
-            'commission': float(get_value(row, 'commission', 'comision', default=0)),
-            'notes': get_value(row, 'notes', 'notas')
-        }
-        
-        # Limpiar valores None
-        transaction = {k: v for k, v in transaction.items() if v is not None}
-        
-        return transaction
-    
-    def _is_duplicate(self, transaction_data):
-        """
-        Verifica si una transacción ya existe en la base de datos
-        
-        Criterio de duplicado: misma fecha, tipo, ticker y cantidad
-        """
-        existing = self.db.get_transactions(
-            type=transaction_data['type'],
-            ticker=transaction_data['ticker']
-        )
-        
-        for trans in existing:
-            if (trans.date == transaction_data['date'] and 
-                trans.quantity == transaction_data['quantity'] and
-                trans.price == transaction_data['price']):
-                return True
-        
-        return False
-    
-    # ==========================================
-    # VALIDACIÓN
-    # ==========================================
-    
-    def validate_file(self, file_path, file_type='csv'):
-        """
-        Valida un archivo sin importarlo (modo dry-run)
-        
-        Args:
-            file_path: Ruta al archivo
-            file_type: 'csv' o 'excel'
-        
-        Returns:
-            Dict con resultados de validación:
-            {
-                'valid': bool,
-                'errors': List[str],
-                'warnings': List[str],
-                'rows': int
-            }
-        """
-        print(f"\n🔍 Validando archivo: {file_path}")
-        
-        try:
-            # Leer archivo
-            if file_type == 'csv':
-                df = pd.read_csv(file_path)
-            else:
-                df = pd.read_excel(file_path)
-            
-            # Validar estructura
-            errors = self._validate_dataframe(df)
-            
-            # Advertencias (no críticas)
-            warnings = []
-            
-            # Verificar columnas opcionales faltantes
-            optional_cols = ['name', 'asset_type', 'notes']
-            for col in optional_cols:
-                if col not in df.columns:
-                    warnings.append(f"Columna opcional '{col}' no encontrada")
-            
-            result = {
-                'valid': len(errors) == 0,
-                'errors': errors,
-                'warnings': warnings,
-                'rows': len(df)
-            }
-            
-            if result['valid']:
-                print(f"   ✅ Archivo válido: {result['rows']} filas")
-            else:
-                print(f"   ❌ Archivo inválido: {len(errors)} errores")
-            
-            return result
-            
-        except Exception as e:
-            return {
-                'valid': False,
-                'errors': [f"Error al leer archivo: {str(e)}"],
-                'warnings': [],
-                'rows': 0
-            }
-    
-    # ==========================================
-    # EXPORTACIÓN
-    # ==========================================
-    
-    def export_to_csv(self, output_path=None, filters=None):
-        """
-        Exporta transacciones a CSV
-        
-        Args:
-            output_path: Ruta del archivo de salida (auto-genera si es None)
-            filters: Dict con filtros (igual que db.get_transactions)
-        
-        Returns:
-            Ruta del archivo generado
-        """
-        # Generar nombre de archivo si no se proporciona
-        if output_path is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = EXPORTS_DIR / f'transactions_{timestamp}.csv'
-        else:
-            output_path = Path(output_path)
-        
         # Obtener transacciones
         if filters:
             transactions = self.db.get_transactions(**filters)
         else:
             transactions = self.db.get_transactions()
         
-        # Convertir a DataFrame
-        df = self.db.transactions_to_dataframe(transactions)
+        if not transactions:
+            print("No hay transacciones para exportar")
+            return False
         
-        # Guardar CSV
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(output_path, index=False)
+        # Preparar datos
+        fieldnames = [
+            'date', 'type', 'ticker', 'name', 'asset_type', 
+            'quantity', 'price', 'commission', 'total',
+            'currency', 'market', 'realized_gain_eur', 'unrealized_gain_eur',
+            'notes'
+        ]
         
-        print(f"✅ {len(df)} transacciones exportadas a: {output_path}")
-        return output_path
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                
+                if include_header:
+                    writer.writeheader()
+                
+                for trans in transactions:
+                    row = {
+                        'date': trans.date.isoformat() if trans.date else '',
+                        'type': trans.type,
+                        'ticker': trans.ticker,
+                        'name': trans.name or '',
+                        'asset_type': trans.asset_type or '',
+                        'quantity': trans.quantity,
+                        'price': trans.price,
+                        'commission': trans.commission or 0,
+                        'total': trans.total or 0,
+                        'currency': trans.currency or 'EUR',
+                        'market': trans.market or '',
+                        'realized_gain_eur': trans.realized_gain_eur if trans.realized_gain_eur else '',
+                        'unrealized_gain_eur': trans.unrealized_gain_eur if trans.unrealized_gain_eur else '',
+                        'notes': trans.notes or ''
+                    }
+                    writer.writerow(row)
+            
+            print(f"✅ Exportadas {len(transactions)} transacciones a {file_path}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error exportando: {e}")
+            return False
     
-    def export_to_excel(self, output_path=None, include_summary=True, filters=None):
+    def validate_import_file(self, file_path: str) -> List[str]:
         """
-        Exporta transacciones a Excel (puede incluir múltiples hojas)
+        Valida un archivo CSV antes de importar (sin guardar nada).
         
         Args:
-            output_path: Ruta del archivo de salida
-            include_summary: Si True, añade hoja con resumen
-            filters: Dict con filtros
+            file_path: Ruta al archivo CSV
         
         Returns:
-            Ruta del archivo generado
+            Lista de problemas encontrados (vacía si todo está bien)
         """
-        # Generar nombre de archivo si no se proporciona
-        if output_path is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = EXPORTS_DIR / f'portfolio_export_{timestamp}.xlsx'
-        else:
-            output_path = Path(output_path)
+        problems = []
         
-        # Obtener datos
-        if filters:
-            transactions = self.db.get_transactions(**filters)
-        else:
-            transactions = self.db.get_transactions()
+        file_path = Path(file_path)
         
-        df_trans = self.db.transactions_to_dataframe(transactions)
+        if not file_path.exists():
+            return [f"Archivo no encontrado: {file_path}"]
         
-        # Crear Excel con múltiples hojas
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+        except Exception as e:
+            return [f"Error leyendo archivo: {e}"]
         
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-            # Hoja 1: Transacciones
-            df_trans.to_excel(writer, sheet_name='Transacciones', index=False)
+        if not rows:
+            return ["El archivo está vacío"]
+        
+        # Verificar columnas requeridas
+        csv_columns = [self._normalize_column_name(col) for col in rows[0].keys()]
+        
+        for required in self.REQUIRED_FIELDS:
+            if required not in csv_columns:
+                problems.append(f"Falta columna requerida: {required}")
+        
+        # Verificar datos
+        for i, row in enumerate(rows[:10], 1):  # Solo verificar primeras 10 filas
+            # Fecha
+            date_col = next((c for c in row.keys() if self._normalize_column_name(c) == 'date'), None)
+            if date_col and not self._parse_date(row.get(date_col)):
+                problems.append(f"Fila {i}: Formato de fecha no reconocido")
             
-            # Hoja 2: Resumen (si está habilitado)
-            if include_summary:
-                summary_data = {
-                    'Total Transacciones': [len(df_trans)],
-                    'Compras': [len(df_trans[df_trans['type'] == 'buy'])],
-                    'Ventas': [len(df_trans[df_trans['type'] == 'sell'])],
-                    'Tickers Únicos': [df_trans['ticker'].nunique()],
-                    'Fecha Primera Operación': [df_trans['date'].min()],
-                    'Fecha Última Operación': [df_trans['date'].max()]
-                }
-                df_summary = pd.DataFrame(summary_data)
-                df_summary.to_excel(writer, sheet_name='Resumen', index=False)
-            
-            # Hoja 3: Dividendos
-            dividends = self.db.get_dividends()
-            if dividends:
-                df_divs = self.db.dividends_to_dataframe(dividends)
-                df_divs.to_excel(writer, sheet_name='Dividendos', index=False)
+            # Cantidad
+            qty_col = next((c for c in row.keys() if self._normalize_column_name(c) == 'quantity'), None)
+            if qty_col:
+                qty = self._parse_number(row.get(qty_col))
+                if qty <= 0:
+                    problems.append(f"Fila {i}: Cantidad debe ser > 0")
         
-        print(f"✅ Exportado a Excel: {output_path}")
-        print(f"   📊 {len(df_trans)} transacciones")
-        if include_summary:
-            print(f"   📋 Incluye hoja de resumen")
-        
-        return output_path
+        return problems
     
-    def export_template_csv(self, output_path=None):
-        """
-        Genera un archivo CSV de plantilla con las columnas correctas
-        Útil para que el usuario vea el formato esperado
-        
-        Returns:
-            Ruta del archivo generado
-        """
-        if output_path is None:
-            output_path = EXPORTS_DIR / 'template_transactions.csv'
-        else:
-            output_path = Path(output_path)
-        
-        # Crear DataFrame de ejemplo
-        template_data = {
-            'date': ['2024-01-15', '2024-03-20'],
-            'type': ['buy', 'sell'],
-            'ticker': ['TEF', 'BBVA'],
-            'name': ['Telefónica SA', 'Banco BBVA'],
-            'asset_type': ['accion', 'accion'],
-            'quantity': [100, 50],
-            'price': [4.20, 9.50],
-            'commission': [10.0, 8.5],
-            'notes': ['Primera compra', 'Venta parcial']
-        }
-        
-        df = pd.DataFrame(template_data)
-        
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(output_path, index=False)
-        
-        print(f"✅ Plantilla CSV generada: {output_path}")
-        return output_path
+    def get_import_stats(self) -> Dict:
+        """Retorna estadísticas de la base de datos"""
+        return self.db.get_database_stats()
+
+
+# =============================================================================
+# FUNCIONES DE CONVENIENCIA
+# =============================================================================
+
+def quick_import(file_path: str, db_path: str = None) -> Dict:
+    """
+    Importación rápida de un archivo CSV.
     
-    def close(self):
-        """Cierra conexión a la base de datos"""
-        self.db.close()
+    Uso:
+        from src.data_loader import quick_import
+        result = quick_import('mis_operaciones.csv')
+        print(f"Importadas: {result['success']}")
+    """
+    loader = DataLoader(db_path)
+    result = loader.import_from_csv(file_path)
+    loader.close()
+    return result
 
 
-# ==========================================
-# FUNCIÓN DE PRUEBA
-# ==========================================
+def quick_export(file_path: str, db_path: str = None, **filters) -> bool:
+    """
+    Exportación rápida a CSV.
+    
+    Uso:
+        from src.data_loader import quick_export
+        quick_export('backup.csv')
+        quick_export('ventas_2024.csv', type='sell', year=2024)
+    """
+    loader = DataLoader(db_path)
+    result = loader.export_to_csv(file_path, filters if filters else None)
+    loader.close()
+    return result
 
-def test_data_loader():
-    """Función de prueba para el data loader"""
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🧪 PROBANDO DATA LOADER")
-    print("="*60 + "\n")
+    print("🧪 TEST DEL MÓDULO DATA_LOADER v2")
+    print("="*60)
     
     loader = DataLoader()
     
-    # 1. Generar plantilla
-    print("1️⃣ Generando plantilla CSV...")
-    template_path = loader.export_template_csv()
+    # Estadísticas actuales
+    stats = loader.get_import_stats()
+    print(f"\n📊 Estado actual de la base de datos:")
+    print(f"   Transacciones: {stats['total_transactions']}")
+    print(f"   Tickers únicos: {stats['unique_tickers']}")
     
-    # 2. Importar desde la plantilla
-    print("\n2️⃣ Importando desde plantilla...")
-    result = loader.import_from_csv(template_path)
+    # Test: Verificar campos nuevos
+    print("\n📋 Verificando campos importados...")
     
-    print(f"\nResultado de importación:")
-    print(f"   ✅ Éxitos: {result['success']}")
-    print(f"   ⏭️  Omitidos: {result['skipped']}")
-    print(f"   ❌ Errores: {len(result['errors'])}")
-    
-    # 3. Exportar a Excel
-    print("\n3️⃣ Exportando a Excel...")
-    excel_path = loader.export_to_excel(include_summary=True)
-    
-    print("\n" + "="*60)
-    print("✅ TESTS COMPLETADOS")
-    print("="*60 + "\n")
+    transactions = loader.db.get_transactions(limit=5)
+    if transactions:
+        print(f"   Primeras {len(transactions)} transacciones:")
+        for t in transactions:
+            currency = t.currency or 'N/A'
+            market = t.market or 'N/A'
+            rgain = f"{t.realized_gain_eur:+.2f}€" if t.realized_gain_eur else 'N/A'
+            print(f"   {t.date} {t.type:4} {t.ticker[:15]:<15} | {currency} | {market} | B/P: {rgain}")
+    else:
+        print("   No hay transacciones")
     
     loader.close()
-
-
-if __name__ == '__main__':
-    test_data_loader()
+    
+    print("\n" + "="*60)
+    print("✅ TEST COMPLETADO")
+    print("="*60 + "\n")

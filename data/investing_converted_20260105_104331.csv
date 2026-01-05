@@ -1,0 +1,178 @@
+date,type,ticker,name,asset_type,quantity,price,commission,currency,market,unrealized_gain_eur,notes,realized_gain_eur
+2024-05-15,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,16.873,11.853,0.0,EUR,IR,42.137,Posición abierta - IR (EUR),
+2024-05-29,buy,LP68307890,Fidelity Funds - Global Technology Fund A-Acc-EUR,fondo,7.98,50.125,0.0,EUR,LU,64.439,Posición abierta - LU (EUR),
+2024-06-03,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,16.965,11.788,0.0,EUR,IR,43.458,Posición abierta - IR (EUR),
+2024-06-12,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,16.528,12.124,0.0,EUR,IR,36.796,Posición abierta - IR (EUR),
+2024-06-17,buy,LP68307890,Fidelity Funds - Global Technology Fund A-Acc-EUR,fondo,3.76,53.197,0.0,EUR,LU,18.811,Posición abierta - LU (EUR),
+2024-07-01,buy,LP68307890,Fidelity Funds - Global Technology Fund A-Acc-EUR,fondo,3.77,53.05,0.0,EUR,LU,19.416,Posición abierta - LU (EUR),
+2024-07-01,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,8.073,12.385,0.0,EUR,IR,15.867,Posición abierta - IR (EUR),
+2024-07-02,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.49,201.612,0.0,EUR,IR,24.84,Posición abierta - IR (EUR),
+2024-07-04,buy,LP60043203,Groupama Trésorerie IC,fondo,0.0024,42116.67,0.0,EUR,EPA,4.277,Posición abierta - EPA (EUR),
+2024-07-04,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.53,188.66,0.0,EUR,IR,33.733,Posición abierta - IR (EUR),
+2024-07-15,buy,LP68307890,Fidelity Funds - Global Technology Fund A-Acc-EUR,fondo,0.82,52.902,0.0,EUR,LU,4.344,Posición abierta - LU (EUR),
+2024-07-15,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,23.953,12.524,0.0,EUR,IR,43.736,Posición abierta - IR (EUR),
+2024-07-15,buy,LP60043203,Groupama Trésorerie IC,fondo,0.0213,42164.32,0.0,EUR,EPA,36.941,Posición abierta - EPA (EUR),
+2024-07-15,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.52,182.769,0.0,EUR,IR,36.16,Posición abierta - IR (EUR),
+2024-07-15,buy,LP68365920,Cobas LUX SICAV - Cobas Selection Fund Class P Acc,fondo,0.0199,21359.66,0.0,EUR,LU,225.581,Posición abierta - LU (EUR),
+2024-07-15,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,6.4585,140.49,0.0,EUR,LU,15.436,Posición abierta - LU (EUR),
+2024-07-16,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,2.42,206.512,0.0,EUR,IR,110.823,Posición abierta - IR (EUR),
+2024-07-16,buy,LP68478358,Fidelity MSCI World Index Fund EUR P Acc (Hedged),fondo,44.293,9.031,0.0,EUR,IR,79.351,Posición abierta - IR (EUR),
+2024-08-12,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,16.841,11.875,0.0,EUR,IR,41.678,Posición abierta - IR (EUR),
+2024-08-13,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.5,197.02,0.0,EUR,IR,27.644,Posición abierta - IR (EUR),
+2024-08-29,buy,LP60043203,Groupama Trésorerie IC,fondo,0.118,42363.81,0.0,EUR,EPA,181.112,Posición abierta - EPA (EUR),
+2024-09-05,buy,LP60043203,Groupama Trésorerie IC,fondo,0.0707,42394.91,0.0,EUR,EPA,106.315,Posición abierta - EPA (EUR),
+2024-09-05,buy,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,13.63,155.957,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2024-09-05,buy,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,18.43,155.597,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2024-09-20,buy,LP68478350,Fidelity S&P 500 Index Fund EUR P Acc,fondo,15.264,12.447,0.0,EUR,IR,29.049,Posición abierta - IR (EUR),
+2024-09-23,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.97,200.804,0.0,EUR,IR,49.958,Posición abierta - IR (EUR),
+2024-10-01,buy,LP68521273,Neuberger Berman Ultra Short Term Euro Bond Fund C,fondo,4.381,114.01,0.0,EUR,IR,17.568,Posición abierta - IR (EUR),
+2024-10-01,buy,LP68255689,Vanguard Global Short-Term Bond Index Fund EUR Hed,fondo,0.01,102.693,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2024-10-01,buy,LP68569865,Vanguard Global Short-Term Corporate Bond Index Fu,fondo,1.95,102.277,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2024-10-01,buy,LP68255689,Vanguard Global Short-Term Bond Index Fund EUR Hed,fondo,4.85,102.693,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2024-10-01,buy,0P00000FB8,Carmignac Sécurité A EUR Acc,fondo,0.0001,1863.77,0.0,EUR,EPA,,Compra (cerrada) - EPA (EUR),
+2024-10-03,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,2.33,214.343,0.0,EUR,IR,88.455,Posición abierta - IR (EUR),
+2024-10-04,buy,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,8.28,36.2,0.0,EUR,LU,,Compra (cerrada) - LU (EUR),
+2024-10-08,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,2.3487,127.73,0.0,EUR,LU,35.583,Posición abierta - LU (EUR),
+2024-10-08,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,2.3487,127.73,0.0,EUR,LU,,Compra (cerrada) - LU (EUR),
+2024-10-28,buy,LP68521273,Neuberger Berman Ultra Short Term Euro Bond Fund C,fondo,4.366,114.15,0.0,EUR,IR,16.896,Posición abierta - IR (EUR),
+2024-10-28,buy,0P00000FB8,Carmignac Sécurité A EUR Acc,fondo,0.0001,1866.52,0.0,EUR,EPA,,Compra (cerrada) - EPA (EUR),
+2024-10-29,buy,LP68361205,Jupiter Gold & Silver Fund L EUR Acc,fondo,4.328,20.532,0.0,EUR,IR,38.123,Posición abierta - IR (EUR),
+2024-10-29,buy,LP68664585,Myinvestor S&P500 Equiponderado FI,fondo,157.7208,1.268,0.0,EUR,BME,,Compra (cerrada) - BME (EUR),
+2024-10-29,buy,LP68250801,Vanguard Emerging Markets Stock Index Fund Institu,fondo,0.51,213.039,0.0,EUR,IR,20.027,Posición abierta - IR (EUR),
+2024-10-29,buy,LP68618318,Buy & Hold Luxembourg B&H Bond Class 1,fondo,436.12,1.248,0.0,EUR,LU,30.746,Posición abierta - LU (EUR),
+2024-10-30,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,0.8205,121.86,0.0,EUR,LU,17.247,Posición abierta - LU (EUR),
+2024-10-30,buy,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,2.75,36.33,0.0,EUR,LU,,Compra (cerrada) - LU (EUR),
+2024-11-27,buy,LP68618318,Buy & Hold Luxembourg B&H Bond Class 1,fondo,318.066,1.258,0.0,EUR,LU,19.211,Posición abierta - LU (EUR),
+2024-12-03,buy,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,2.68,37.23,0.0,EUR,LU,,Compra (cerrada) - LU (EUR),
+2024-12-11,buy,LP68618318,Buy & Hold Luxembourg B&H Bond Class 1,fondo,315.333,1.269,0.0,EUR,LU,15.609,Posición abierta - LU (EUR),
+2024-12-12,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,0.7906,126.47,0.0,EUR,LU,12.974,Posición abierta - LU (EUR),
+2025-01-20,buy,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,1.34,148.552,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2025-01-24,buy,0P00000N4I,Deutsche Floating Rate Notes LC,fondo,0.4942,90.56,0.0,EUR,LU,1.137,Posición abierta - LU (EUR),
+2025-01-24,buy,LP68618318,Buy & Hold Luxembourg B&H Bond Class 1,fondo,157.815,1.267,0.0,EUR,LU,8.017,Posición abierta - LU (EUR),
+2025-01-31,buy,LP68618318,Buy & Hold Luxembourg B&H Bond Class 1,fondo,157.035,1.274,0.0,EUR,LU,6.988,Posición abierta - LU (EUR),
+2025-02-03,buy,0P00012I69,Vanguard Global Bond Index Fund Institutional Euro,fondo,2.04,97.814,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2025-02-03,buy,LP68478358,Fidelity MSCI World Index Fund EUR P Acc (Hedged),fondo,66.191,9.472,0.0,EUR,IR,89.331,Posición abierta - IR (EUR),
+2025-02-25,buy,LP68436112,Carmignac Portfolio Unconstrained Credit A EUR Acc,fondo,2.634,151.86,0.0,EUR,LU,16.041,Posición abierta - LU (EUR),
+2025-02-27,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,1.3798,144.94,0.0,EUR,LU,-2.842,Posición abierta - LU (EUR),
+2025-03-05,buy,IDR,Indra,accion,15.0,25.39,0.0,EUR,BME,,Compra (cerrada) - BME (EUR),
+2025-03-06,buy,BABA.K,Alibaba ADR,accion,3.0,144.51,0.0,USD,NYSE,,Compra (cerrada) - NYSE (USD),
+2025-03-10,buy,TLT5.DE,Leverage Shares 5x Long 20+ Year Treasury Bond Sec,etf,85.0,4.93,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-03-26,buy,NEA.MC,Nicolás Correa,accion,38.0,10.61,0.0,EUR,BME,,Compra (cerrada) - BME (EUR),
+2025-04-01,buy,LP68361205,Jupiter Gold & Silver Fund L EUR Acc,fondo,33.732,14.822,0.0,EUR,IR,489.708,Posición abierta - IR (EUR),
+2025-04-15,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,2.4661,121.65,0.0,EUR,LU,52.355,Posición abierta - LU (EUR),
+2025-04-17,buy,NXTE.MC,Nueva Expresion,accion,1200.0,0.42,0.0,EUR,BME,619.2,Posición abierta - BME (EUR),
+2025-04-29,buy,LP68307890,Fidelity Funds - Global Technology Fund A-Acc-EUR,fondo,5.42,46.125,0.0,EUR,LU,65.447,Posición abierta - LU (EUR),
+2025-04-30,buy,0P0000TOUY,Pictet-China Index P EUR,fondo,1.6046,124.63,0.0,EUR,LU,29.284,Posición abierta - LU (EUR),
+2025-05-12,buy,5SPE.DE,Leverage Shares 5x Long S&P 500 ETP Securities,etf,175.0,2.04,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-05-12,buy,SMH.MI,VanEck Vectors Semiconductor UCITS,etf,12.0,36.21,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-05-12,sell,IDR,Indra,accion,15.0,29.4,0.0,EUR,BME,,"Venta - B/P: +60.15€ (15,79%)",60.15
+2025-05-14,buy,LP65080348,Alken Fund - Small Cap Europe Class R,fondo,1.742,415.58,0.0,EUR,LU,248.392,Posición abierta - LU (EUR),
+2025-05-16,sell,LP68255689,Vanguard Global Short-Term Bond Index Fund EUR Hed,fondo,4.85,103.671,0.0,EUR,IR,,"Venta - B/P: +4.74€ (0,95%)",4.74
+2025-05-16,buy,TLW.L,Tullow Oil,accion,2300.0,15.5,0.0,GBX,LON,,Compra (cerrada) - LON (GBX),
+2025-05-19,buy,OHLA,OHL,accion,1140.0,0.35,0.0,EUR,BME,,Compra (cerrada) - BME (EUR),
+2025-05-23,sell,OHLA,OHL,accion,1140.0,0.33,0.0,EUR,BME,,"Venta - B/P: -22.80€ (-5,71%)",-22.8
+2025-05-23,buy,IOVA.O,Iovance Biotherapeutics,accion,260.0,1.76,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-06-02,buy,NBIS.O,Nebius NV,accion,3.0,35.84,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-06-02,buy,NBIS.O,Nebius NV,accion,8.0,35.84,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-06-02,buy,NBIS.O,Nebius NV,accion,3.0,35.84,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-01,buy,APE.MC,Amper,accion,4125.0,0.14,0.0,EUR,BME,193.875,Posición abierta - BME (EUR),
+2025-07-07,buy,BTBT.O,Bit Digital,accion,180.0,3.37,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-07,sell,NEA.MC,Nicolás Correa,accion,38.0,10.8,0.0,EUR,BME,,"Venta - B/P: +7.22€ (1,79%)",7.22
+2025-07-21,sell,5SPE.DE,Leverage Shares 5x Long S&P 500 ETP Securities,etf,175.0,2.7011,0.0,EUR,ETR,,"Venta - B/P: +115.69€ (32,41%)",115.69
+2025-07-24,sell,IOVA.O,Iovance Biotherapeutics,accion,260.0,3.68,0.0,USD,NASDAQ,,"Venta - B/P: +423.62€ (108,92%)",423.62
+2025-07-25,buy,IOVA.O,Iovance Biotherapeutics,accion,140.0,3.74,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-25,buy,ABCL.O,Abcellera Biologics,accion,100.0,5.24,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-25,buy,ASTS.O,Ast Spacemobile,accion,6.0,55.64,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-25,buy,ASTS.O,Ast Spacemobile,accion,2.0,55.64,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-07-29,sell,BTBT.O,Bit Digital,accion,180.0,2.77,0.0,USD,NASDAQ,,"Venta - B/P: -93.72€ (-17,80%)",-93.72
+2025-07-31,buy,OHLA,OHL,accion,1500.0,0.34,0.0,EUR,BME,43.5,Posición abierta - BME (EUR),
+2025-08-07,buy,0P0001YE65,Hamco Global Value Fund R FI,fondo,0.7515,250.808,0.0,EUR,BME,,Compra (cerrada) - BME (EUR),
+2025-08-07,sell,LP68664585,Myinvestor S&P500 Equiponderado FI,fondo,157.7208,1.209,0.0,EUR,BME,,"Venta - B/P: -9.32€ (-4,66%)",-9.32
+2025-08-08,sell,TLW.L,Tullow Oil,accion,2300.0,10.1,0.0,GBX,LON,,"Venta - B/P: -143.28€ (-34,84%)",-143.28
+2025-08-08,buy,APE.MC,Amper,accion,3300.0,0.1386,0.0,EUR,BME,159.72,Posición abierta - BME (EUR),
+2025-08-11,buy,VVMX.DE,VanEck Vectors Rare Earth and Strategic Metals UCI,etf,52.0,9.7,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-08-26,sell,TLT5.DE,Leverage Shares 5x Long 20+ Year Treasury Bond Sec,etf,85.0,3.01,0.0,EUR,ETR,,"Venta - B/P: -163.20€ (-38,95%)",-163.2
+2025-08-26,sell,NBIS.O,Nebius NV,accion,3.0,71.08,0.0,USD,NASDAQ,,"Venta - B/P: +0.01€ (0,00%)",0.01
+2025-08-26,buy,NBIS.O,Nebius NV,accion,3.0,71.08,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-08-26,sell,NBIS.O,Nebius NV,accion,3.0,72.09,0.0,USD,NASDAQ,,"Venta - B/P: +93.34€ (101,14%)",93.34
+2025-08-26,buy,DMX.V,District Metals,accion,550.0,1.39,0.0,CAD,TSXV,-61.5186,Posición abierta - TSXV (CAD),
+2025-08-28,buy,CRM,Salesforce Inc,accion,3.0,252.11,0.0,USD,NYSE,,Compra (cerrada) - NYSE (USD),
+2025-08-28,buy,LP68365920,Cobas LUX SICAV - Cobas Selection Fund Class P Acc,fondo,0.0308,26010.39,0.0,EUR,LU,205.898,Posición abierta - LU (EUR),
+2025-08-28,sell,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,18.43,135.738,0.0,EUR,IR,,"Venta - B/P: +0.00€ (0,00%)",0.0
+2025-08-28,buy,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,18.43,135.738,0.0,EUR,IR,,Compra (cerrada) - IR (EUR),
+2025-08-28,sell,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,18.43,135.738,0.0,EUR,IR,,"Venta - B/P: -366.00€ (-12,76%)",-366.0
+2025-08-29,buy,LP68361205,Jupiter Gold & Silver Fund L EUR Acc,fondo,42.115,18.995,0.0,EUR,IR,435.68,Posición abierta - IR (EUR),
+2025-08-29,buy,0P0001843C,Schroder International Selection Fund Global Gold,fondo,0.0001,265.513,0.0,EUR,LU,,Compra (cerrada) - LU (EUR),
+2025-09-08,buy,3CIN.DE,Leverage Shares 3x Long China Securities,etf,130.0,4.1,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-09-08,sell,LP68255689,Vanguard Global Short-Term Bond Index Fund EUR Hed,fondo,0.01,105.076,0.0,EUR,IR,,"Venta - B/P: +0.02€ (2,32%)",0.02
+2025-09-08,buy,LP68436112,Carmignac Portfolio Unconstrained Credit A EUR Acc,fondo,1.302,155.5,0.0,EUR,LU,3.19,Posición abierta - LU (EUR),
+2025-09-08,sell,LP68569865,Vanguard Global Short-Term Corporate Bond Index Fu,fondo,1.95,105.521,0.0,EUR,IR,,"Venta - B/P: +6.33€ (3,17%)",6.33
+2025-09-08,sell,0P00012I69,Vanguard Global Bond Index Fund Institutional Euro,fondo,2.04,99.901,0.0,EUR,IR,,"Venta - B/P: +4.26€ (2,13%)",4.26
+2025-09-11,buy,OPEN.O,Opendoor Tech,accion,48.0,10.7,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-09-12,buy,UNH,UnitedHealth,accion,1.0,361.23,0.0,USD,NYSE,,Compra (cerrada) - NYSE (USD),
+2025-09-12,sell,NBIS.O,Nebius NV,accion,3.0,89.19,0.0,USD,NASDAQ,,"Venta - B/P: +136.28€ (148,86%)",136.28
+2025-09-15,buy,NVAX.O,Novavax,accion,72.0,8.09,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-09-17,sell,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,2.75,34.16,0.0,EUR,LU,,"Venta - B/P: -5.97€ (-5,97%)",-5.97
+2025-09-17,sell,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,2.68,34.16,0.0,EUR,LU,,"Venta - B/P: -8.23€ (-8,25%)",-8.23
+2025-09-17,sell,0P0000TEYN,Jupiter Global Fund - Jupiter India Select Class L,fondo,8.28,34.16,0.0,EUR,LU,,"Venta - B/P: -16.89€ (-5,64%)",-16.89
+2025-09-18,buy,MARA.O,Marathon Digital,accion,30.0,18.97,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-09-19,buy,NXTE.MC,Nueva Expresion,accion,800.0,0.63,0.0,EUR,BME,244.8,Posición abierta - BME (EUR),
+2025-09-22,sell,UNH,UnitedHealth,accion,1.0,336.95,0.0,USD,NYSE,,"Venta - B/P: -20.63€ (-6,72%)",-20.63
+2025-09-22,sell,VVMX.DE,VanEck Vectors Rare Earth and Strategic Metals UCI,etf,52.0,10.04,0.0,EUR,ETR,,"Venta - B/P: +17.68€ (3,51%)",17.68
+2025-09-22,buy,OKLO.K,Oklo Inc,accion,3.0,133.47,0.0,USD,NYSE,,Compra (cerrada) - NYSE (USD),
+2025-09-23,buy,NXTE.MC,Nueva Expresion,accion,700.0,0.68,0.0,EUR,BME,179.2,Posición abierta - BME (EUR),
+2025-09-24,sell,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,1.34,135.741,0.0,EUR,IR,,"Venta - B/P: -17.17€ (-8,62%)",-17.17
+2025-09-24,buy,NXTE.MC,Nueva Expresion,accion,800.0,0.76,0.0,EUR,BME,140.8,Posición abierta - BME (EUR),
+2025-09-24,sell,LP65093564,Vanguard 20+ Year Euro Treasury Index Fund EUR Acc,fondo,13.63,135.741,0.0,EUR,IR,,"Venta - B/P: -275.54€ (-12,96%)",-275.54
+2025-09-24,buy,NXTE.MC,Nueva Expresion,accion,800.0,0.77,0.0,EUR,BME,132.8,Posición abierta - BME (EUR),
+2025-09-25,buy,NXTE.MC,Nueva Expresion,accion,800.0,0.7,0.0,EUR,BME,188.8,Posición abierta - BME (EUR),
+2025-09-29,sell,CRM,Salesforce Inc,accion,3.0,243.1,0.0,USD,NYSE,,"Venta - B/P: -23.04€ (-3,57%)",-23.04
+2025-09-30,buy,AMGOLD.PA,Amundi Physical Gold C,etf,6.0,128.76,0.0,EUR,EPA,101.64,Posición abierta - EPA (EUR),
+2025-10-02,buy,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,4.0,135.17,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-03,buy,NVAX.O,Novavax,accion,52.0,9.73,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-10-03,buy,OHLA,OHL,accion,1100.0,0.469,0.0,EUR,BME,-110.0,Posición abierta - BME (EUR),
+2025-10-07,sell,IOVA.O,Iovance Biotherapeutics,accion,140.0,2.17,0.0,USD,NASDAQ,,"Venta - B/P: -188.52€ (-41,98%)",-188.52
+2025-10-07,buy,HIVE.O,HIVE Digital Tech,accion,45.0,6.13,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-10-10,sell,3CIN.DE,Leverage Shares 3x Long China Securities,etf,130.0,4.03,0.0,EUR,ETR,,"Venta - B/P: -9.10€ (-1,71%)",-9.1
+2025-10-10,sell,ABCL.O,Abcellera Biologics,accion,100.0,5.49,0.0,USD,NASDAQ,,"Venta - B/P: +21.54€ (4,77%)",21.54
+2025-10-10,sell,MARA.O,Marathon Digital,accion,30.0,18.38,0.0,USD,NASDAQ,,"Venta - B/P: -15.25€ (-3,11%)",-15.25
+2025-10-13,buy,REMX.MI,VanEck Vectors Rare Earth and Strategic Metals UCI,etf,45.0,12.51,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-13,sell,PATH.K,UiPath,accion,28.0,16.72,0.0,USD,NYSE,,"Venta - B/P: -14.51€ (-3,46%)",-14.51
+2025-10-13,buy,PATH.K,UiPath,accion,28.0,17.32,0.0,USD,NYSE,,Compra (cerrada) - NYSE (USD),
+2025-10-13,buy,3CIN.DE,Leverage Shares 3x Long China Securities,etf,120.0,4.26,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-10-14,buy,MARA.O,Marathon Digital,accion,22.0,22.44,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-10-14,sell,ASTS.O,Ast Spacemobile,accion,2.0,90.97,0.0,USD,NASDAQ,,"Venta - B/P: +61.06€ (63,50%)",61.06
+2025-10-14,sell,3CIN.DE,Leverage Shares 3x Long China Securities,etf,120.0,3.94,0.0,EUR,ETR,,"Venta - B/P: -38.40€ (-7,51%)",-38.4
+2025-10-14,sell,0P0000TOUY,Pictet-China Index P EUR,fondo,2.3487,127.73,0.0,EUR,LU,,"Venta - B/P: +0.00€ (0,00%)",0.0
+2025-10-15,buy,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,4.0,170.29,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-16,sell,OKLO.K,Oklo Inc,accion,3.0,162.04,0.0,USD,NYSE,,"Venta - B/P: +73.40€ (21,41%)",73.4
+2025-10-17,sell,0P0001YE65,Hamco Global Value Fund R FI,fondo,0.7515,250.622,0.0,EUR,BME,,"Venta - B/P: -0.14€ (-0,07%)",-0.14
+2025-10-20,buy,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,3.0,175.9,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-22,sell,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,3.0,146.61,0.0,EUR,BIT,,"Venta - B/P: -87.87€ (-16,65%)",-87.87
+2025-10-22,buy,WBITG.DE,WisdomTree Physical Bitcoin,etf,25.0,22.28,0.0,EUR,ETR,,Compra (cerrada) - ETR (EUR),
+2025-10-22,sell,ASTS.O,Ast Spacemobile,accion,6.0,71.49,0.0,USD,NASDAQ,,"Venta - B/P: +82.01€ (28,49%)",82.01
+2025-10-22,sell,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,4.0,146.61,0.0,EUR,BIT,,"Venta - B/P: -94.72€ (-13,91%)",-94.72
+2025-10-22,sell,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,4.0,146.61,0.0,EUR,BIT,,"Venta - B/P: +45.76€ (8,46%)",45.76
+2025-10-23,sell,0P00000FB8,Carmignac Sécurité A EUR Acc,fondo,0.0001,1924.27,0.0,EUR,EPA,,"Venta - B/P: +0.01€ (3,09%)",0.01
+2025-10-23,sell,0P00000FB8,Carmignac Sécurité A EUR Acc,fondo,0.0001,1924.27,0.0,EUR,EPA,,"Venta - B/P: +0.01€ (3,25%)",0.01
+2025-10-23,buy,DOCU.O,DocuSign,accion,8.0,71.0,0.0,USD,NASDAQ,,Compra (cerrada) - NASDAQ (USD),
+2025-10-23,buy,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,6.0,157.92,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-28,sell,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,6.0,135.49,0.0,EUR,BIT,,"Venta - B/P: -134.58€ (-14,20%)",-134.58
+2025-10-29,buy,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,6.0,145.53,0.0,EUR,BIT,,Compra (cerrada) - BIT (EUR),
+2025-10-31,sell,0P0001843C,Schroder International Selection Fund Global Gold,fondo,0.0001,321.376,0.0,EUR,LU,,"Venta - B/P: +0.00€ (21,04%)",0.0
+2025-11-02,buy,LP68683198,Myinvestor Value A FI,fondo,530.3594,1.09,0.0,EUR,BME,91.222,Posición abierta - BME (EUR),
+2025-11-05,buy,LP68656141,Gamma Global FI,fondo,23.8658,13.273,0.0,EUR,BME,-1.384,Posición abierta - BME (EUR),
+2025-11-20,sell,DOCU.O,DocuSign,accion,8.0,64.39,0.0,USD,NASDAQ,,"Venta - B/P: -45.83€ (-9,31%)",-45.83
+2025-11-20,sell,HIVE.O,HIVE Digital Tech,accion,45.0,3.03,0.0,USD,NASDAQ,,"Venta - B/P: -120.90€ (-50,57%)",-120.9
+2025-11-20,sell,MARA.O,Marathon Digital,accion,22.0,10.6,0.0,USD,NASDAQ,,"Venta - B/P: -225.76€ (-52,76%)",-225.76
+2025-11-24,sell,REMX.MI,VanEck Vectors Rare Earth and Strategic Metals UCI,etf,45.0,11.49,0.0,EUR,BIT,,"Venta - B/P: -45.90€ (-8,15%)",-45.9
+2025-11-24,sell,WBITG.DE,WisdomTree Physical Bitcoin,etf,25.0,17.45,0.0,EUR,ETR,,"Venta - B/P: -120.75€ (-21,68%)",-120.75
+2025-11-24,buy,BRKb,Berkshire Hathaway B,accion,2.0,499.1,0.0,USD,NYSE,-3.84,Posición abierta - NYSE (USD),
+2025-11-25,sell,SMH.MI,VanEck Vectors Semiconductor UCITS,etf,12.0,49.28,0.0,EUR,BIT,,"Venta - B/P: +156.84€ (36,10%)",156.84
+2025-11-25,sell,NBIS.O,Nebius NV,accion,8.0,87.92,0.0,USD,NASDAQ,,"Venta - B/P: +360.31€ (145,31%)",360.31
+2025-11-25,sell,BABA.K,Alibaba ADR,accion,3.0,159.67,0.0,USD,NYSE,,"Venta - B/P: +39.32€ (10,49%)",39.32
+2025-11-25,sell,3GOL.MI,WisdomTree Gold 3x Daily Leveraged,etf,6.0,155.9,0.0,EUR,BIT,,"Venta - B/P: +62.22€ (7,13%)",62.22
+2025-11-26,sell,NVAX.O,Novavax,accion,52.0,6.8,0.0,USD,NASDAQ,,"Venta - B/P: -131.46€ (-30,11%)",-131.46
+2025-11-26,sell,NVAX.O,Novavax,accion,72.0,6.8,0.0,USD,NASDAQ,,"Venta - B/P: -80.14€ (-15,95%)",-80.14
+2025-11-26,sell,OPEN.O,Opendoor Tech,accion,48.0,7.52,0.0,USD,NASDAQ,,"Venta - B/P: -131.70€ (-29,72%)",-131.7
+2025-11-28,buy,OHLA,OHL,accion,1300.0,0.4,0.0,EUR,BME,-40.3,Posición abierta - BME (EUR),

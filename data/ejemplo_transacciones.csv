@@ -1,0 +1,26 @@
+date,type,ticker,name,asset_type,quantity,price,commission,notes
+2023-01-15,buy,TEF,Telefónica SA,accion,100,4.20,10.00,Primera compra
+2023-02-20,buy,BBVA,Banco BBVA,accion,50,9.50,8.50,
+2023-03-10,buy,SAN,Banco Santander,accion,200,4.30,12.00,
+2023-04-05,buy,IBE,Iberdrola,accion,75,12.50,9.00,Sector energía
+2023-06-15,dividend,TEF,Telefónica SA,,,,,Dividendo semestral
+2023-07-20,buy,REP,Repsol,accion,40,15.80,8.00,
+2023-09-10,sell,TEF,Telefónica SA,accion,50,4.50,10.00,Venta parcial
+2023-10-12,buy,ES0110041006,Fondo Inversión XYZ,fondo,100,15.50,0.00,Sin comisiones
+2023-12-20,dividend,BBVA,Banco BBVA,,,,,Dividendo anual
+2024-01-15,buy,TEF,Telefónica SA,accion,50,4.10,8.50,Recompra
+2024-02-28,buy,ITX,Inditex,accion,30,38.50,15.00,Primera compra Inditex
+2024-03-15,sell,BBVA,Banco BBVA,accion,25,10.20,8.00,Venta parcial con ganancia
+2024-04-10,buy,NTGY,Naturgy,accion,60,22.30,9.50,
+2024-05-20,transfer,ES0110041006,Fondo Inversión XYZ,fondo,100,16.00,0.00,Traspaso a otro fondo
+2024-05-20,transfer,ES0110042007,Fondo Renta Fija ABC,fondo,100,16.00,0.00,Recepción de traspaso
+2024-06-15,dividend,TEF,Telefónica SA,,,,,Dividendo semestral 2024
+2024-06-20,dividend,SAN,Banco Santander,,,,,Dividendo trimestral
+2024-07-05,buy,ACS,ACS Grupo,accion,25,42.80,12.00,Construcción
+2024-08-10,sell,IBE,Iberdrola,accion,25,13.20,8.00,Toma de beneficios
+2024-09-15,buy,FER,Ferrovial,accion,20,35.60,10.00,
+2024-10-01,buy,ES0110042007,Fondo Renta Fija ABC,fondo,50,18.20,0.00,Aportación adicional
+2024-11-12,dividend,ITX,Inditex,,,,,Dividendo excepcional
+2024-12-01,buy,MAP,Mapfre,accion,150,2.40,8.00,Aseguradora
+2024-12-15,sell,REP,Repsol,accion,20,16.50,8.00,Venta parcial
+2024-12-20,dividend,BBVA,Banco BBVA,,,,,Dividendo anual 2024

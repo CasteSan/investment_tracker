@@ -26,6 +26,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 
+# Importar logger
+try:
+    from src.logger import get_logger
+except ImportError:
+    from logger import get_logger
+
+logger = get_logger(__name__)
+
 # Base para modelos SQLAlchemy
 Base = declarative_base()
 
@@ -243,15 +251,18 @@ class Database:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Crear engine y sesión
+        logger.debug(f"Conectando a base de datos: {self.db_path}")
         self.engine = create_engine(f'sqlite:///{self.db_path}', echo=False)
         Base.metadata.create_all(self.engine)
         
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
+        logger.info(f"Base de datos inicializada: {self.db_path.name}")
     
     def close(self):
         """Cierra la conexión a la base de datos"""
         self.session.close()
+        logger.debug("Conexión a base de datos cerrada")
     
     # =========================================================================
     # TRANSACCIONES
@@ -272,6 +283,8 @@ class Database:
         Returns:
             ID de la transacción creada
         """
+        logger.debug(f"Añadiendo transacción: {transaction_data.get('type')} {transaction_data.get('ticker')}")
+        
         # Convertir fecha si es string
         if isinstance(transaction_data.get('date'), str):
             transaction_data['date'] = datetime.strptime(transaction_data['date'], '%Y-%m-%d').date()
@@ -295,6 +308,7 @@ class Database:
         self.session.add(transaction)
         self.session.commit()
         
+        logger.info(f"Transacción añadida: ID={transaction.id}, {transaction.type} {transaction.quantity} {transaction.ticker} @ {transaction.price}")
         return transaction.id
     
     def get_transactions(self, 

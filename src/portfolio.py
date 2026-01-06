@@ -25,8 +25,12 @@ from pathlib import Path
 # Importar módulo de base de datos
 try:
     from src.database import Database
+    from src.logger import get_logger
 except ImportError:
     from database import Database
+    from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Portfolio:
@@ -56,15 +60,18 @@ class Portfolio:
         Args:
             db_path: Ruta a la base de datos. Si es None, usa la ruta por defecto.
         """
+        logger.debug("Inicializando Portfolio")
         self.db = Database(db_path) if db_path else Database()
         self._positions_cache = None
         self._cache_timestamp = None
         self._cache_ttl = 60  # Cache válido por 60 segundos
+        logger.debug("Portfolio inicializado")
     
     def _invalidate_cache(self):
         """Invalida el cache de posiciones"""
         self._positions_cache = None
         self._cache_timestamp = None
+        logger.debug("Cache de posiciones invalidado")
     
     def _is_cache_valid(self) -> bool:
         """Verifica si el cache es válido"""
@@ -113,15 +120,20 @@ class Portfolio:
             - unrealized_gain_pct: Plusvalía/minusvalía latente (%)
             - currency: Divisa original de las transacciones
         """
+        logger.debug(f"Calculando posiciones actuales (asset_type={asset_type}, include_zero={include_zero})")
+        
         # Obtener todas las transacciones
         transactions = self.db.get_transactions()
         
         if not transactions:
+            logger.warning("No hay transacciones en la base de datos")
             return pd.DataFrame(columns=[
                 'ticker', 'name', 'display_name', 'asset_type', 'quantity', 'avg_price',
                 'cost_basis', 'current_price', 'market_value', 
                 'unrealized_gain', 'unrealized_gain_pct', 'currency'
             ])
+        
+        logger.debug(f"Procesando {len(transactions)} transacciones")
         
         # Convertir a DataFrame
         df = self.db.transactions_to_dataframe(transactions)

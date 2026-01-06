@@ -29,8 +29,12 @@ except ImportError:
 
 try:
     from src.database import Database
+    from src.logger import get_logger
 except ImportError:
     from database import Database
+    from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MarketDataManager:
@@ -62,12 +66,20 @@ class MarketDataManager:
         Args:
             db_path: Ruta a la base de datos (opcional)
         """
+        logger.debug("Inicializando MarketDataManager")
         self.db = Database(db_path) if db_path else Database()
         self._price_cache = {}  # Cache en memoria: {ticker: DataFrame}
+        logger.info("MarketDataManager inicializado")
     
     def close(self):
         """Cierra la conexión a la base de datos"""
         self.db.close()
+        logger.debug("MarketDataManager cerrado")
+    
+    def clear_price_cache(self):
+        """Limpia el cache de precios en memoria"""
+        self._price_cache = {}
+        logger.debug("Cache de precios limpiado")
     
     # =========================================================================
     # DESCARGA DE PRECIOS

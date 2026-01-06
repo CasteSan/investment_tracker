@@ -30,8 +30,12 @@ from collections import defaultdict
 
 try:
     from src.database import Database
+    from src.logger import get_logger
 except ImportError:
     from database import Database
+    from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -88,11 +92,14 @@ class TaxCalculator:
         if self.method not in ['FIFO', 'LIFO']:
             raise ValueError("Método debe ser 'FIFO' o 'LIFO'")
         
+        logger.debug(f"Inicializando TaxCalculator con método {self.method}")
         self.db = Database(db_path) if db_path else Database()
+        logger.info(f"TaxCalculator inicializado (método: {self.method})")
     
     def close(self):
         """Cierra la conexión a la base de datos"""
         self.db.close()
+        logger.debug("TaxCalculator cerrado")
     
     # =========================================================================
     # GESTIÓN DE LOTES

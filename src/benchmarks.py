@@ -37,9 +37,13 @@ except ImportError:
 try:
     from src.database import Database
     from src.portfolio import Portfolio
+    from src.logger import get_logger
 except ImportError:
     from database import Database
     from portfolio import Portfolio
+    from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -97,14 +101,17 @@ class BenchmarkComparator:
         Args:
             db_path: Ruta a la base de datos (opcional)
         """
+        logger.debug("Inicializando BenchmarkComparator")
         self.db = Database(db_path) if db_path else Database()
         self.portfolio = Portfolio(db_path) if db_path else Portfolio()
         self._portfolio_cache = {}
+        logger.info("BenchmarkComparator inicializado")
     
     def close(self):
         """Cierra las conexiones"""
         self.db.close()
         self.portfolio.close()
+        logger.debug("BenchmarkComparator cerrado")
     
     # =========================================================================
     # GESTIÓN DE DATOS DE BENCHMARKS

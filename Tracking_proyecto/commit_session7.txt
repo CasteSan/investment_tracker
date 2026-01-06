@@ -1,0 +1,165 @@
+# =============================================================================
+# COMMIT MESSAGE - SESIÓN 7: Streamlit UI
+# =============================================================================
+# Ejecutar: git add . && git commit -F commit_session7.txt
+# =============================================================================
+
+feat(ui): Implementar interfaz Streamlit completa con 6 páginas
+
+SESIÓN 7: Streamlit UI - Dashboard interactivo profesional
+
+## 📦 NUEVOS ARCHIVOS
+
+### app/main.py (~180 líneas)
+Página principal con:
+- Configuración de Streamlit (layout wide, sidebar)
+- Session state para configuración global
+- Resumen ejecutivo de cartera
+- CSS personalizado
+- Estadísticas de base de datos
+
+### app/pages/ (6 páginas ~2,400 líneas total)
+
+#### 1_📊_Dashboard.py (~280 líneas)
+- Métricas principales: valor, coste, ganancia latente, realizado
+- Gráfico donut de distribución
+- Top mejores/peores performers
+- Tabla de posiciones ordenable
+- Resumen por tipo de activo
+- Exportar a CSV
+
+#### 2_➕_Añadir_Operación.py (~350 líneas)
+- Tab Compra: formulario completo con validación
+- Tab Venta: selector de activos, cálculo automático
+- Tab Dividendo: bruto/neto, retención automática, ex-date
+- Tab Traspaso: fondos origen/destino
+- Últimas 10 operaciones registradas
+
+#### 3_📈_Análisis.py (~320 líneas)
+- Filtros: tipo de activo, divisa, ganancias/pérdidas
+- Métricas: rentabilidad, tasa de acierto
+- Gráfico de barras de rentabilidad por activo
+- Tabla detallada con pesos
+- Distribución por activo y por tipo
+- Estadísticas: mejor/peor posición, concentración
+
+#### 4_💰_Fiscal.py (~380 líneas)
+- Resumen fiscal del año
+- Gráfico waterfall de rendimientos
+- Detalle de operaciones
+- Alertas de wash sales (regla 2 meses)
+- Simulador de venta con impacto fiscal
+- Lotes disponibles (FIFO)
+- Exportar informe Excel
+
+#### 5_💵_Dividendos.py (~330 líneas)
+- Resumen: cobros, bruto, neto, retenciones
+- Calendario mensual con gráfico
+- Dividendos por activo con donut
+- Yield on Cost (YOC) por activo y cartera
+- Historial filtrable
+- Proyección anual
+- Exportar a Excel
+
+#### 6_🎯_Benchmarks.py (~440 líneas)
+- Selector de benchmark (SP500, IBEX35, MSCI World...)
+- Descarga automática con yfinance
+- Gráfico base 100 comparativo
+- Métricas de rendimiento: outperformance
+- Métricas de riesgo: volatilidad, beta, alpha
+- Ratios: Sharpe, Sortino, Information Ratio
+- Max Drawdown y VaR
+- Interpretación automática
+- Exportar a Excel
+
+### app/components/ (~600 líneas total)
+
+#### charts.py (~300 líneas)
+- plot_portfolio_evolution(): Evolución temporal
+- plot_allocation_donut(): Distribución cartera
+- plot_performance_bar(): Rentabilidad por activo
+- plot_benchmark_comparison(): Cartera vs benchmark
+- plot_dividend_calendar(): Dividendos por mes
+- plot_gains_waterfall(): Ganancias/pérdidas/dividendos
+- plot_risk_gauge(): Gauges para ratios
+- plot_top_bottom_performers(): Mejores/peores
+
+#### tables.py (~200 líneas)
+- create_positions_table(): Tabla de posiciones
+- create_transactions_table(): Historial
+- create_fiscal_table(): Detalle fiscal
+- create_dividends_table(): Historial dividendos
+- create_benchmark_metrics_table(): Métricas
+- display_styled_dataframe(): Con colores
+- highlight_gains_losses(): Estilo verde/rojo
+
+#### metrics.py (~150 líneas)
+- metric_card(): Tarjeta individual
+- metrics_row(): Fila de métricas
+- portfolio_summary_metrics(): Resumen cartera
+- risk_metrics_cards(): Métricas de riesgo
+- gain_loss_indicator(): Indicador +/-
+- performance_badge(): Badge de rendimiento
+- progress_to_goal(): Barra de progreso
+
+## 📊 ESTRUCTURA FINAL
+
+```
+app/
+├── main.py                          # Página principal
+├── __init__.py
+├── pages/
+│   ├── 1_📊_Dashboard.py           # Vista general
+│   ├── 2_➕_Añadir_Operación.py    # Formularios
+│   ├── 3_📈_Análisis.py            # Análisis detallado
+│   ├── 4_💰_Fiscal.py              # Información fiscal
+│   ├── 5_💵_Dividendos.py          # Tracking dividendos
+│   └── 6_🎯_Benchmarks.py          # Comparación índices
+└── components/
+    ├── __init__.py
+    ├── charts.py                    # Gráficos Plotly
+    ├── tables.py                    # Tablas formateadas
+    └── metrics.py                   # Tarjetas de KPIs
+```
+
+## 🚀 CÓMO EJECUTAR
+
+```bash
+# Instalar dependencias
+pip install streamlit plotly
+
+# Ejecutar aplicación
+streamlit run app/main.py
+
+# Se abre automáticamente en http://localhost:8501
+```
+
+## ✨ CARACTERÍSTICAS
+
+- Layout wide para aprovechar pantalla
+- Sidebar con configuración global
+- Session state persistente
+- Gráficos interactivos (Plotly)
+- Tablas ordenables y filtrables
+- Colores verde/rojo para ganancias/pérdidas
+- Exportación a CSV y Excel
+- Responsive (funciona en móvil)
+
+## 📋 DEPENDENCIAS AÑADIDAS
+
+```bash
+pip install streamlit plotly
+```
+
+## ✅ PROYECTO COMPLETADO
+
+Con esta sesión, el proyecto Investment Tracker está funcionalmente completo:
+- ✅ Sesión 1: Database
+- ✅ Sesión 2: Data Loader
+- ✅ Sesión 3: Portfolio
+- ✅ Sesión 4: Tax Calculator
+- ✅ Sesión 5: Dividends
+- ✅ Sesión 6: Benchmarks
+- ✅ Sesión 7: Streamlit UI
+
+Total: ~7,500 líneas de código Python

@@ -1,0 +1,52 @@
+# =============================================================================
+# COMMIT MESSAGE - SESIÓN 8: Mejoras Benchmarks y Correcciones app
+# =============================================================================
+# Ejecutar: git add . && git commit -F Tracking_proyecto\commit_session8.txt
+# =============================================================================
+
+feat: Precios de mercado reales, traspasos fiscales y correcciones múltiples
+
+MEJORAS PRINCIPALES:
+
+1. SISTEMA DE PRECIOS DE MERCADO REALES
+   - Nuevo módulo src/market_data.py para descargar precios históricos
+   - Nueva tabla asset_prices en database.py
+   - Dashboard y Análisis ahora usan precios de mercado descargados
+   - Método get_all_latest_prices() para obtener últimos precios
+   
+2. BENCHMARKS CON VALOR REAL DE CARTERA
+   - Gráfico estilo Investing.com con valor real en €
+   - Tres líneas: Valor Total, Posiciones Abiertas, Capital Invertido
+   - Comparación Base 100 usando rendimiento sobre coste (no valor absoluto)
+   - Dos modos: Solo posiciones actuales vs Cartera completa
+   - Fix: Las aportaciones ya no afectan el gráfico de comparación
+   
+3. TRASPASOS FISCALES CORREGIDOS
+   - Traspasos entre fondos ahora mantienen coste fiscal (ley española)
+   - Nuevos campos en Transaction: cost_basis_eur, transfer_link_id
+   - tax_calculator.py actualizado para manejar transfer_in/transfer_out
+   - Formulario de traspaso mejorado con campo de coste fiscal
+   
+4. CORRECCIONES DE ERRORES
+   - Fix: Slider en Análisis con pocas posiciones (min_value > max_value)
+   - Fix: Error de índices en Benchmarks al comparar series
+   - Fix: get_fiscal_detail → get_fiscal_year_detail en Fiscal.py
+   - Fix: check_wash_sale_rule → get_wash_sales_in_year en Fiscal.py
+   - Fix: Ganancia latente = 0 cuando no hay precios descargados
+
+ARCHIVOS MODIFICADOS:
+- src/database.py (AssetPrice model, métodos de precios)
+- src/market_data.py (NUEVO - gestión precios de mercado)
+- src/benchmarks.py (valor real, rendimiento sobre coste)
+- src/tax_calculator.py (traspasos fiscales)
+- src/portfolio.py (traspasos fiscales)
+- app/pages/1_📊_Dashboard.py (precios de mercado)
+- app/pages/2_➕_Añadir_Operación.py (formulario traspasos)
+- app/pages/3_📈_Análisis.py (precios mercado, slider fix)
+- app/pages/4_💰_Fiscal.py (corrección métodos)
+- app/pages/6_🎯_Benchmarks.py (reescrito completo)
+
+NOTAS:
+- Requiere ejecutar ALTER TABLE para añadir columnas si BD existente
+- Los precios se descargan desde Yahoo Finance (yfinance)
+- Compatible con legislación fiscal española para traspasos

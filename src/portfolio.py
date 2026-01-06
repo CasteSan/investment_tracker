@@ -173,16 +173,42 @@ class Portfolio:
                             qty_to_sell = 0
                 
                 elif row['type'] == 'transfer_out':
-                    # Traspaso saliente: reduce cantidad pero mantiene base de coste proporcional
-                    if total_quantity > 0:
-                        proportion = row['quantity'] / total_quantity
-                        total_quantity -= row['quantity']
-                        total_cost -= total_cost * proportion
+                    # Traspaso saliente: reduce cantidad y coste usando FIFO (como venta)
+                    # NO genera plusvalía, solo transfiere el coste al fondo destino
+                    qty_to_transfer = row['quantity']
+                    while qty_to_transfer > 0 and lots:
+                        lot = lots[0]
+                        if lot['quantity'] <= qty_to_transfer:
+                            qty_to_transfer -= lot['quantity']
+                            total_quantity -= lot['quantity']
+                            total_cost -= (lot['quantity'] * lot['price'])
+                            lots.pop(0)
+                        else:
+                            lot['quantity'] -= qty_to_transfer
+                            total_quantity -= qty_to_transfer
+                            total_cost -= (qty_to_transfer * lot['price'])
+                            qty_to_transfer = 0
                 
                 elif row['type'] == 'transfer_in':
-                    # Traspaso entrante: aumenta cantidad con su base de coste
+                    # Traspaso entrante: aumenta cantidad con COSTE FISCAL HEREDADO
+                    # Usar cost_basis_eur si está disponible, si no, usar price como fallback
                     total_quantity += row['quantity']
-                    total_cost += row['quantity'] * row['price']
+                    
+                    # El coste fiscal viene del campo cost_basis_eur (heredado del fondo origen)
+                    if row.get('cost_basis_eur') and row['cost_basis_eur'] > 0:
+                        inherited_cost = row['cost_basis_eur']
+                    else:
+                        # Fallback: usar precio (menos preciso, para datos antiguos)
+                        inherited_cost = row['quantity'] * row['price']
+                    
+                    total_cost += inherited_cost
+                    
+                    # Añadir como un nuevo lote con el precio fiscal
+                    lots.append({
+                        'date': row['date'],
+                        'quantity': row['quantity'],
+                        'price': inherited_cost / row['quantity'] if row['quantity'] > 0 else row['price']
+                    })
             
             # Solo incluir si tiene cantidad > 0 (o si include_zero=True)
             if total_quantity > 0 or include_zero:

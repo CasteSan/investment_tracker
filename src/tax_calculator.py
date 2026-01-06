@@ -1,6 +1,6 @@
 """
 Tax Calculator Module - Gestión Fiscal de Inversiones
-Sesión 4 del Investment Tracker
+Sesión 4 del Investment Tracker (actualizado en Sesión 7)
 
 Este módulo gestiona:
 - Cálculo de plusvalías/minusvalías con FIFO (o LIFO)
@@ -9,6 +9,13 @@ Este módulo gestiona:
 - Simulación de impacto fiscal antes de vender
 - Detección de regla antiaplicación (2 meses)
 - Cálculo de impuestos según tramos IRPF del ahorro
+- TRASPASOS entre fondos (sin generar fiscalidad, manteniendo coste fiscal)
+
+IMPORTANTE - Fiscalidad de traspasos en España:
+- Los traspasos entre fondos de inversión NO generan plusvalía/minusvalía
+- El coste fiscal se TRANSFIERE del fondo origen al fondo destino
+- Solo al vender (reembolso) del fondo destino se calcula la plusvalía
+- Se usa el coste fiscal ORIGINAL, no el valor de mercado del traspaso
 
 Autor: Investment Tracker Project
 Fecha: Enero 2026
@@ -97,17 +104,23 @@ class TaxCalculator:
         
         Usa FIFO para determinar qué lotes quedan después de las ventas.
         
+        IMPORTANTE - Manejo de traspasos (fiscalidad española):
+        - transfer_out: Sale del fondo origen, reduce lotes (como venta pero SIN plusvalía)
+        - transfer_in: Entra al fondo destino con el COSTE FISCAL ORIGINAL (no precio de mercado)
+        
         Args:
             ticker: Símbolo del activo
         
         Returns:
             Lista de lotes disponibles, cada uno con:
-            - date: Fecha de compra
+            - date: Fecha de compra (o de transfer_in)
             - quantity: Cantidad restante
-            - price: Precio de compra
-            - cost: Coste total del lote
-            - days_held: Días desde la compra
-            - original_quantity: Cantidad original comprada
+            - price: Precio unitario para cálculo fiscal (coste_basis / cantidad)
+            - cost: Coste total del lote (coste fiscal)
+            - days_held: Días desde la compra original
+            - original_quantity: Cantidad original
+            - is_transfer: True si viene de un traspaso
+            - original_purchase_date: Fecha de compra original (para traspasos)
         """
         transactions = self.db.get_transactions(ticker=ticker)
         
@@ -122,7 +135,9 @@ class TaxCalculator:
                 'type': t.type,
                 'quantity': float(t.quantity),
                 'price': float(t.price),
-                'name': t.name
+                'name': t.name,
+                'cost_basis_eur': float(t.cost_basis_eur) if t.cost_basis_eur else None,
+                'notes': t.notes or ''
             })
         
         trans_list.sort(key=lambda x: x['date'])
@@ -132,20 +147,48 @@ class TaxCalculator:
         
         for trans in trans_list:
             if trans['type'] == 'buy':
+                # Compra normal
                 lots.append({
                     'date': trans['date'],
                     'quantity': trans['quantity'],
                     'original_quantity': trans['quantity'],
                     'price': trans['price'],
                     'cost': trans['quantity'] * trans['price'],
-                    'name': trans['name']
+                    'name': trans['name'],
+                    'is_transfer': False,
+                    'original_purchase_date': trans['date']
+                })
+            
+            elif trans['type'] == 'transfer_in':
+                # Traspaso entrante: usar COSTE FISCAL, no precio de mercado
+                if trans['cost_basis_eur'] and trans['cost_basis_eur'] > 0:
+                    # Usar el coste fiscal proporcionado
+                    cost_basis = trans['cost_basis_eur']
+                    fiscal_price = cost_basis / trans['quantity']
+                else:
+                    # Fallback: intentar extraer de las notas (compatibilidad)
+                    cost_basis = self._extract_cost_basis_from_notes(trans['notes'], trans['quantity'], trans['price'])
+                    fiscal_price = cost_basis / trans['quantity'] if trans['quantity'] > 0 else trans['price']
+                
+                # Para la fecha original, intentamos extraerla de las notas o usamos la fecha del traspaso
+                original_date = self._extract_original_date_from_notes(trans['notes']) or trans['date']
+                
+                lots.append({
+                    'date': trans['date'],  # Fecha del traspaso
+                    'quantity': trans['quantity'],
+                    'original_quantity': trans['quantity'],
+                    'price': fiscal_price,  # Precio fiscal (coste/cantidad)
+                    'cost': cost_basis,  # Coste fiscal heredado
+                    'name': trans['name'],
+                    'is_transfer': True,
+                    'original_purchase_date': original_date  # Fecha de compra original
                 })
             
             elif trans['type'] == 'sell':
+                # Venta: reduce lotes según FIFO/LIFO
                 qty_to_sell = trans['quantity']
                 
                 if self.method == 'FIFO':
-                    # Vender de los lotes más antiguos primero
                     for lot in lots:
                         if qty_to_sell <= 0:
                             break
@@ -155,7 +198,6 @@ class TaxCalculator:
                             lot['cost'] = lot['quantity'] * lot['price']
                             qty_to_sell -= sell_from_lot
                 else:  # LIFO
-                    # Vender de los lotes más recientes primero
                     for lot in reversed(lots):
                         if qty_to_sell <= 0:
                             break
@@ -164,6 +206,29 @@ class TaxCalculator:
                             lot['quantity'] -= sell_from_lot
                             lot['cost'] = lot['quantity'] * lot['price']
                             qty_to_sell -= sell_from_lot
+            
+            elif trans['type'] == 'transfer_out':
+                # Traspaso saliente: reduce lotes (como venta, pero SIN generar plusvalía)
+                qty_to_transfer = trans['quantity']
+                
+                if self.method == 'FIFO':
+                    for lot in lots:
+                        if qty_to_transfer <= 0:
+                            break
+                        if lot['quantity'] > 0:
+                            transfer_from_lot = min(lot['quantity'], qty_to_transfer)
+                            lot['quantity'] -= transfer_from_lot
+                            lot['cost'] = lot['quantity'] * lot['price']
+                            qty_to_transfer -= transfer_from_lot
+                else:  # LIFO
+                    for lot in reversed(lots):
+                        if qty_to_transfer <= 0:
+                            break
+                        if lot['quantity'] > 0:
+                            transfer_from_lot = min(lot['quantity'], qty_to_transfer)
+                            lot['quantity'] -= transfer_from_lot
+                            lot['cost'] = lot['quantity'] * lot['price']
+                            qty_to_transfer -= transfer_from_lot
         
         # Filtrar lotes con cantidad > 0 y añadir días de tenencia
         today = datetime.now()
@@ -171,11 +236,77 @@ class TaxCalculator:
         
         for lot in lots:
             if lot['quantity'] > 0.0001:  # Tolerancia para decimales
-                lot['days_held'] = (today - lot['date']).days
-                lot['date'] = lot['date'].strftime('%Y-%m-%d')
+                # Para días de tenencia, usar la fecha de compra ORIGINAL
+                original_date = lot.get('original_purchase_date', lot['date'])
+                if isinstance(original_date, str):
+                    original_date = datetime.strptime(original_date, '%Y-%m-%d')
+                
+                lot['days_held'] = (today - original_date).days
+                lot['date'] = lot['date'].strftime('%Y-%m-%d') if isinstance(lot['date'], datetime) else lot['date']
+                lot['original_purchase_date'] = original_date.strftime('%Y-%m-%d') if isinstance(original_date, datetime) else original_date
                 available_lots.append(lot)
         
         return available_lots
+    
+    def _extract_cost_basis_from_notes(self, notes: str, quantity: float, price: float) -> float:
+        """
+        Extrae el coste fiscal de las notas (compatibilidad con datos antiguos).
+        
+        Busca patrones como "Coste fiscal: 1234.56€"
+        
+        Args:
+            notes: Notas de la transacción
+            quantity: Cantidad de participaciones
+            price: Precio de mercado (fallback)
+        
+        Returns:
+            Coste fiscal extraído o calculado
+        """
+        import re
+        
+        if not notes:
+            return quantity * price
+        
+        # Buscar patrón "Coste fiscal: X€" o "Coste fiscal: X"
+        pattern = r'[Cc]oste\s+fiscal:\s*([\d.,]+)\s*€?'
+        match = re.search(pattern, notes)
+        
+        if match:
+            try:
+                cost_str = match.group(1).replace(',', '.')
+                return float(cost_str)
+            except ValueError:
+                pass
+        
+        # Fallback: usar precio de mercado
+        return quantity * price
+    
+    def _extract_original_date_from_notes(self, notes: str) -> Optional[datetime]:
+        """
+        Extrae la fecha de compra original de las notas (si está disponible).
+        
+        Args:
+            notes: Notas de la transacción
+        
+        Returns:
+            Fecha original o None
+        """
+        import re
+        
+        if not notes:
+            return None
+        
+        # Buscar patrón "Fecha original: YYYY-MM-DD"
+        pattern = r'[Ff]echa\s+original:\s*(\d{4}-\d{2}-\d{2})'
+        match = re.search(pattern, notes)
+        
+        if match:
+            try:
+                return datetime.strptime(match.group(1), '%Y-%m-%d')
+            except ValueError:
+                pass
+        
+        return None
     
     def get_all_available_lots(self) -> pd.DataFrame:
         """

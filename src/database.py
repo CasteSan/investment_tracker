@@ -46,6 +46,10 @@ class Transaction(Base):
     - market: Mercado de origen (BME, NYSE, LON, etc.)
     - realized_gain_eur: Para ventas, el B/P ya convertido a EUR
     - unrealized_gain_eur: Para posiciones abiertas, B/P latente en EUR
+    
+    Campo para traspasos:
+    - cost_basis_eur: Para transfer_in, el coste fiscal heredado del fondo origen
+    - transfer_link_id: ID de la transacción vinculada (transfer_out <-> transfer_in)
     """
     __tablename__ = 'transactions'
     
@@ -60,11 +64,15 @@ class Transaction(Base):
     commission = Column(Float, default=0.0)
     total = Column(Float)  # Calculado en divisa original
     
-    # NUEVOS CAMPOS para multi-divisa
+    # CAMPOS para multi-divisa
     currency = Column(String(10), default='EUR')  # EUR, USD, GBX, CAD, GBP
     market = Column(String(20))  # BME, NYSE, NASDAQ, LON, etc.
     realized_gain_eur = Column(Float)  # B/P de venta YA en EUR (del CSV)
     unrealized_gain_eur = Column(Float)  # B/P latente YA en EUR (del CSV)
+    
+    # CAMPOS para traspasos (fiscalidad española)
+    cost_basis_eur = Column(Float)  # Coste fiscal heredado (para transfer_in)
+    transfer_link_id = Column(Integer)  # ID de la transacción vinculada
     
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
@@ -89,6 +97,8 @@ class Transaction(Base):
             'market': self.market,
             'realized_gain_eur': self.realized_gain_eur,
             'unrealized_gain_eur': self.unrealized_gain_eur,
+            'cost_basis_eur': self.cost_basis_eur,
+            'transfer_link_id': self.transfer_link_id,
             'notes': self.notes
         }
 
@@ -149,6 +159,33 @@ class PortfolioSnapshot(Base):
     unrealized_gain = Column(Float)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
+
+
+class AssetPrice(Base):
+    """
+    Precios históricos de activos de la cartera.
+    
+    Almacena precios descargados de Yahoo Finance para calcular
+    el valor de mercado real de la cartera.
+    """
+    __tablename__ = 'asset_prices'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(50), nullable=False)
+    date = Column(Date, nullable=False)
+    close_price = Column(Float, nullable=False)
+    adj_close_price = Column(Float)  # Precio ajustado por dividendos/splits
+    
+    def __repr__(self):
+        return f"<AssetPrice({self.ticker} {self.date}: {self.close_price})>"
+    
+    def to_dict(self):
+        return {
+            'ticker': self.ticker,
+            'date': self.date.isoformat() if self.date else None,
+            'close_price': self.close_price,
+            'adj_close_price': self.adj_close_price
+        }
 
 
 # =============================================================================
@@ -228,7 +265,9 @@ class Database:
             transaction_data: Dict con los datos de la transacción.
                 Campos requeridos: date, type, ticker, quantity, price
                 Campos opcionales: name, asset_type, commission, currency, market,
-                                   realized_gain_eur, unrealized_gain_eur, notes
+                                   realized_gain_eur, unrealized_gain_eur, notes,
+                                   cost_basis_eur (para traspasos), 
+                                   transfer_link_id (para vincular traspasos)
         
         Returns:
             ID de la transacción creada
@@ -555,6 +594,140 @@ class Database:
         """Retorna lista de benchmarks disponibles"""
         result = self.session.query(BenchmarkData.benchmark_name).distinct().all()
         return [r[0] for r in result]
+    
+    # =========================================================================
+    # PRECIOS DE ACTIVOS
+    # =========================================================================
+    
+    def add_asset_price(self, 
+                       ticker: str, 
+                       date: str, 
+                       close_price: float,
+                       adj_close_price: float = None) -> int:
+        """
+        Añade un precio de un activo.
+        
+        Args:
+            ticker: Símbolo del activo
+            date: Fecha (YYYY-MM-DD)
+            close_price: Precio de cierre
+            adj_close_price: Precio ajustado (opcional)
+        
+        Returns:
+            ID del registro creado
+        """
+        if isinstance(date, str):
+            date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        # Verificar si ya existe
+        existing = self.session.query(AssetPrice).filter(
+            AssetPrice.ticker == ticker,
+            AssetPrice.date == date
+        ).first()
+        
+        if existing:
+            # Actualizar precio existente
+            existing.close_price = close_price
+            existing.adj_close_price = adj_close_price or close_price
+            self.session.commit()
+            return existing.id
+        
+        # Crear nuevo registro
+        price = AssetPrice(
+            ticker=ticker,
+            date=date,
+            close_price=close_price,
+            adj_close_price=adj_close_price or close_price
+        )
+        self.session.add(price)
+        self.session.commit()
+        
+        return price.id
+    
+    def get_asset_prices(self,
+                        ticker: str,
+                        start_date: str = None,
+                        end_date: str = None) -> List[AssetPrice]:
+        """
+        Obtiene precios históricos de un activo.
+        
+        Args:
+            ticker: Símbolo del activo
+            start_date: Fecha inicio (opcional)
+            end_date: Fecha fin (opcional)
+        
+        Returns:
+            Lista de objetos AssetPrice ordenados por fecha
+        """
+        query = self.session.query(AssetPrice).filter(
+            AssetPrice.ticker == ticker
+        )
+        
+        if start_date:
+            if isinstance(start_date, str):
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            query = query.filter(AssetPrice.date >= start_date)
+        
+        if end_date:
+            if isinstance(end_date, str):
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            query = query.filter(AssetPrice.date <= end_date)
+        
+        return query.order_by(AssetPrice.date.asc()).all()
+    
+    def get_latest_price(self, ticker: str) -> Optional[float]:
+        """Obtiene el precio más reciente de un activo"""
+        price = self.session.query(AssetPrice).filter(
+            AssetPrice.ticker == ticker
+        ).order_by(AssetPrice.date.desc()).first()
+        
+        return price.adj_close_price if price else None
+    
+    def get_tickers_with_prices(self) -> List[str]:
+        """Retorna lista de tickers con precios descargados"""
+        result = self.session.query(AssetPrice.ticker).distinct().all()
+        return [r[0] for r in result]
+    
+    def get_all_latest_prices(self) -> Dict[str, float]:
+        """
+        Obtiene el último precio de todos los tickers con datos.
+        
+        Returns:
+            Dict con {ticker: ultimo_precio}
+        """
+        from sqlalchemy import func
+        
+        # Subquery para obtener la fecha más reciente de cada ticker
+        subq = self.session.query(
+            AssetPrice.ticker,
+            func.max(AssetPrice.date).label('max_date')
+        ).group_by(AssetPrice.ticker).subquery()
+        
+        # Query para obtener el precio de cada ticker en su fecha más reciente
+        results = self.session.query(AssetPrice).join(
+            subq,
+            (AssetPrice.ticker == subq.c.ticker) & 
+            (AssetPrice.date == subq.c.max_date)
+        ).all()
+        
+        return {r.ticker: r.adj_close_price or r.close_price for r in results}
+    
+    def delete_asset_prices(self, ticker: str = None):
+        """
+        Elimina precios de activos.
+        
+        Args:
+            ticker: Si se especifica, solo elimina precios de ese ticker.
+                   Si es None, elimina TODOS los precios.
+        """
+        if ticker:
+            self.session.query(AssetPrice).filter(
+                AssetPrice.ticker == ticker
+            ).delete()
+        else:
+            self.session.query(AssetPrice).delete()
+        
+        self.session.commit()
     
     # =========================================================================
     # SNAPSHOTS

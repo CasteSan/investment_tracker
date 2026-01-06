@@ -289,69 +289,121 @@ class BenchmarkComparator:
         """
         Obtiene serie temporal del valor de la cartera.
         
-        Para esto necesitamos calcular el valor de la cartera en cada fecha.
-        Usamos una aproximación basada en las transacciones.
+        IMPORTANTE: La serie solo tiene sentido desde la PRIMERA compra.
+        
+        Aproximación: Usamos el COSTE ACUMULADO como proxy del valor.
+        Esto es válido porque:
+        - No tenemos precios de mercado diarios
+        - El coste refleja el capital invertido
+        - La comparación base 100 normaliza las diferencias de escala
         
         Returns:
             Series con índice de fechas y valor de la cartera
         """
-        # Obtener todas las transacciones ordenadas por fecha
         transactions = self.db.get_transactions(order='ASC')
         
         if not transactions:
             return pd.Series(dtype=float)
         
-        # Construir serie de valor de cartera
-        # Simplificación: usamos el valor acumulado de compras - ventas + ganancias
-        
-        df = pd.DataFrame([{
-            'date': t.date,
-            'type': t.type,
-            'total': t.total or (t.quantity * t.price),
-            'realized_gain': t.realized_gain_eur or 0
-        } for t in transactions])
-        
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.sort_values('date')
-        
-        # Calcular valor acumulado
-        portfolio_values = []
-        cumulative_invested = 0
-        cumulative_gains = 0
-        
-        for date in df['date'].unique():
-            day_trans = df[df['date'] == date]
+        # Construir DataFrame de transacciones
+        trans_data = []
+        for t in transactions:
+            total = t.total if t.total else (t.quantity * t.price)
+            cost_basis = t.cost_basis_eur if t.cost_basis_eur else total
             
-            for _, t in day_trans.iterrows():
-                if t['type'] == 'buy':
-                    cumulative_invested += t['total']
-                elif t['type'] == 'sell':
-                    cumulative_invested -= t['total']
-                    cumulative_gains += t['realized_gain']
-            
-            # Valor aproximado = invertido + ganancias realizadas
-            portfolio_values.append({
-                'date': date,
-                'value': cumulative_invested + cumulative_gains
+            trans_data.append({
+                'date': pd.to_datetime(t.date),
+                'type': t.type,
+                'quantity': float(t.quantity),
+                'price': float(t.price),
+                'total': float(total),
+                'ticker': t.ticker,
+                'cost_basis_eur': float(cost_basis) if cost_basis else float(total)
             })
         
-        result_df = pd.DataFrame(portfolio_values)
+        df = pd.DataFrame(trans_data)
+        df = df.sort_values('date')
         
-        if result_df.empty:
+        # Encontrar la primera fecha con transacción
+        first_date = df['date'].min()
+        
+        # Ajustar start_date
+        if start_date:
+            start_date = pd.to_datetime(start_date)
+            if start_date < first_date:
+                start_date = first_date
+        else:
+            start_date = first_date
+        
+        if end_date:
+            end_date = pd.to_datetime(end_date)
+        else:
+            end_date = pd.Timestamp.now()
+        
+        # Calcular valor de cartera en cada fecha de transacción
+        # (más eficiente que calcular para cada día)
+        positions = {}  # ticker -> {'quantity': x, 'cost': y}
+        portfolio_points = []
+        
+        for _, t in df.iterrows():
+            ticker = t['ticker']
+            
+            if ticker not in positions:
+                positions[ticker] = {'quantity': 0.0, 'cost': 0.0}
+            
+            if t['type'] == 'buy':
+                positions[ticker]['quantity'] += t['quantity']
+                positions[ticker]['cost'] += t['total']
+            
+            elif t['type'] == 'sell':
+                if positions[ticker]['quantity'] > 0:
+                    sell_ratio = min(t['quantity'] / positions[ticker]['quantity'], 1.0)
+                    positions[ticker]['cost'] *= (1 - sell_ratio)
+                    positions[ticker]['quantity'] -= t['quantity']
+                    positions[ticker]['quantity'] = max(0, positions[ticker]['quantity'])
+            
+            elif t['type'] == 'transfer_out':
+                if positions[ticker]['quantity'] > 0:
+                    transfer_ratio = min(t['quantity'] / positions[ticker]['quantity'], 1.0)
+                    positions[ticker]['cost'] *= (1 - transfer_ratio)
+                    positions[ticker]['quantity'] -= t['quantity']
+                    positions[ticker]['quantity'] = max(0, positions[ticker]['quantity'])
+            
+            elif t['type'] == 'transfer_in':
+                positions[ticker]['quantity'] += t['quantity']
+                positions[ticker]['cost'] += t['cost_basis_eur']
+            
+            # Calcular valor total después de esta transacción
+            total_value = sum(p['cost'] for p in positions.values() if p['quantity'] > 0)
+            
+            portfolio_points.append({
+                'date': t['date'],
+                'value': total_value
+            })
+        
+        if not portfolio_points:
             return pd.Series(dtype=float)
         
-        series = pd.Series(
-            result_df['value'].values,
-            index=pd.DatetimeIndex(result_df['date']),
-            name='Portfolio'
-        )
+        # Crear DataFrame de puntos
+        points_df = pd.DataFrame(portfolio_points)
         
-        # Filtrar por fechas si se especifican
-        if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
-        if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+        # Eliminar duplicados de fecha (quedarse con el último valor del día)
+        points_df = points_df.groupby('date').last().reset_index()
         
+        # Crear serie con índice de fechas
+        points_df = points_df.set_index('date')
+        
+        # Crear rango de fechas diarias y rellenar hacia adelante
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        series = points_df['value'].reindex(date_range, method='ffill')
+        
+        # Rellenar NaN iniciales con el primer valor válido
+        series = series.fillna(method='bfill')
+        
+        # Filtrar valores > 0
+        series = series[series > 0]
+        
+        series.name = 'Portfolio'
         return series
     
     # =========================================================================
@@ -401,9 +453,12 @@ class BenchmarkComparator:
         """
         Compara la cartera contra un benchmark.
         
+        IMPORTANTE: La comparación solo tiene sentido desde la fecha de la 
+        primera transacción de la cartera. Antes de eso, el valor es 0.
+        
         Args:
             benchmark_name: Nombre del benchmark
-            start_date: Fecha inicio
+            start_date: Fecha inicio (se ajusta a primera transacción si es anterior)
             end_date: Fecha fin
         
         Returns:
@@ -413,25 +468,48 @@ class BenchmarkComparator:
             - benchmark_value, benchmark_normalized
             - outperformance
         """
-        # Obtener series
+        # Primero obtener la serie de cartera (que ya está ajustada a fechas válidas)
         portfolio = self.get_portfolio_series(start_date, end_date)
-        benchmark = self.get_benchmark_series(benchmark_name, start_date, end_date)
         
-        if portfolio.empty or benchmark.empty:
+        if portfolio.empty:
+            return pd.DataFrame()
+        
+        # La fecha de inicio REAL es la primera fecha de la cartera
+        actual_start_date = portfolio.index.min()
+        actual_end_date = portfolio.index.max()
+        
+        # Obtener benchmark SOLO para el período donde existe la cartera
+        benchmark = self.get_benchmark_series(
+            benchmark_name, 
+            actual_start_date.strftime('%Y-%m-%d'), 
+            actual_end_date.strftime('%Y-%m-%d')
+        )
+        
+        if benchmark.empty:
             return pd.DataFrame()
         
         # Alinear fechas (usar solo fechas comunes)
         common_dates = portfolio.index.intersection(benchmark.index)
         
         if len(common_dates) == 0:
-            # Si no hay fechas comunes, resamplear a frecuencia diaria
-            all_dates = portfolio.index.union(benchmark.index)
-            portfolio = portfolio.reindex(all_dates, method='ffill')
+            # Si no hay fechas comunes, resamplear ambas series a las fechas del portfolio
+            # y rellenar benchmark hacia adelante
+            all_dates = portfolio.index
             benchmark = benchmark.reindex(all_dates, method='ffill')
-            common_dates = portfolio.index.intersection(benchmark.index)
+            benchmark = benchmark.fillna(method='bfill')  # Por si hay NaN al inicio
+            common_dates = portfolio.index
         
         portfolio = portfolio.loc[common_dates]
         benchmark = benchmark.loc[common_dates]
+        
+        # Filtrar cualquier NaN
+        valid_mask = ~(portfolio.isna() | benchmark.isna())
+        portfolio = portfolio[valid_mask]
+        benchmark = benchmark[valid_mask]
+        common_dates = portfolio.index
+        
+        if len(common_dates) < 2:
+            return pd.DataFrame()
         
         # Normalizar a base 100
         portfolio_norm = self.normalize_to_base_100(portfolio)

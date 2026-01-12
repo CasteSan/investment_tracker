@@ -1,0 +1,94 @@
+# =============================================================================
+# COMMIT MESSAGE - SESIÓN 8: Mejoras Benchmarks y Correcciones app
+# =============================================================================
+# Ejecutar: git add . && git commit -F Tracking_proyecto/commit_session9.txt
+# =============================================================================
+# 📝 COMMIT: Sistema de Logging
+
+## Mensaje de Commit
+
+```
+feat: Implementar sistema de logging centralizado
+
+NUEVO MÓDULO:
+- src/logger.py: Sistema de logging centralizado con:
+  - Colores en consola para mejor legibilidad
+  - Archivo rotativo (máx 5MB, 3 backups)
+  - Niveles configurables (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  - Decoradores útiles (@log_function_call, @log_execution_time)
+  - Context manager LogContext para bloques de código
+
+MÓDULOS ACTUALIZADOS (añadido logging):
+- src/database.py: Logs de conexión, transacciones, queries
+- src/portfolio.py: Logs de cálculos de posiciones
+- src/tax_calculator.py: Logs de cálculos fiscales
+- src/market_data.py: Logs de descarga de precios
+- src/benchmarks.py: Logs de comparaciones
+
+NUEVOS ARCHIVOS:
+- .gitignore: Ignorar logs, cache Python, entornos virtuales
+- logs/.gitkeep: Directorio para archivos de log
+- docs/GUIA_LOGGING.md: Documentación completa del sistema
+
+USO:
+    from src.logger import get_logger
+    logger = get_logger(__name__)
+    
+    logger.info("Mensaje informativo")
+    logger.error("Mensaje de error")
+```
+
+---
+
+## Comandos Git
+
+```bash
+# Añadir archivos
+git add src/logger.py
+git add src/database.py
+git add src/portfolio.py
+git add src/tax_calculator.py
+git add src/market_data.py
+git add src/benchmarks.py
+git add .gitignore
+git add logs/.gitkeep
+git add docs/GUIA_LOGGING.md
+
+# Commit
+git commit -m "feat: Implementar sistema de logging centralizado
+
+- Nuevo módulo src/logger.py con configuración centralizada
+- Logging en todos los módulos principales (database, portfolio, tax, benchmarks, market_data)
+- Colores en consola, archivo rotativo, niveles configurables
+- Documentación completa en docs/GUIA_LOGGING.md
+- Añadido .gitignore para el proyecto"
+
+# Push
+git push origin main
+```
+
+---
+
+## Verificación Post-Commit
+
+1. **Ver logs en consola:**
+   ```bash
+   streamlit run app/main.py
+   # Los logs aparecen en la terminal
+   ```
+
+2. **Ver archivo de log:**
+   ```bash
+   cat logs/investment_tracker.log
+   # o
+   tail -f logs/investment_tracker.log  # En tiempo real
+   ```
+
+3. **Cambiar nivel de logging:**
+   ```python
+   from src.logger import setup_logging
+   import logging
+   
+   setup_logging(level=logging.DEBUG)  # Ver todo
+   ```
+

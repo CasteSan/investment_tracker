@@ -2,7 +2,7 @@
 
 ## Resumen de Progreso
 
-**Plan de escalabilidad COMPLETADO** - 8 de 8 sesiones finalizadas.
+**Plan de escalabilidad COMPLETADO + Bug fixes aplicados**
 
 | Sesion | Estado | Descripcion |
 |--------|--------|-------------|
@@ -14,21 +14,18 @@
 | 6 | ✅ | Modelo de datos de Fondos |
 | 7 | ✅ | UI Catalogo de Fondos |
 | 8 | ✅ | FastAPI Demo |
+| - | ✅ | Bug fixes de produccion |
 
-## Ultima Sesion Completada: 8 - FastAPI Demo
+## Ultimo Commit
 
-**Objetivo cumplido:** Demostrar que la arquitectura permite exponer la MISMA logica via API REST.
+```
+cd95f04 - fix: resolve errors found in production testing
+```
 
-**Archivos creados:**
-- `api/main.py` - API FastAPI con endpoints
-- `Plan_escalabilidad/commit_session8.md` - Documentacion
-
-**Endpoints disponibles:**
-- `GET /` - Health check
-- `GET /dashboard` - Datos del dashboard
-- `GET /dashboard/metrics` - Metricas avanzadas
-- `GET /funds` - Buscar fondos
-- `GET /funds/{isin}` - Detalle de fondo
+**Bugs corregidos:**
+1. `Database.get_transaction_by_id()` - Metodo faltante para UI de edicion
+2. `calculate_cagr()` - Cambiado a `calculate_cagr_from_prices()`
+3. yfinance con ISINs - Mejorado manejo y cache de fallos
 
 ## Comandos Principales
 
@@ -86,12 +83,18 @@ pytest tests/unit/ -v    # 138 tests
 # - test_portfolio_service.py: 41 tests
 ```
 
+## Limitaciones Conocidas
+
+- **yfinance + ISINs europeos:** Muchos fondos mutuos no disponibles
+- **Precios fondos:** Solo acciones/ETFs con ticker Yahoo funcionan bien
+
 ## Proximos Pasos Sugeridos
 
 El plan de escalabilidad esta completo. Mejoras opcionales:
 
-1. **Autenticacion API:** JWT tokens
-2. **Tests de API:** TestClient de FastAPI
-3. **CI/CD:** GitHub Actions
-4. **Docker:** Containerizacion
-5. **Mas datos:** Importar fondos reales al catalogo
+1. **API alternativa precios:** Morningstar o Investing.com para fondos
+2. **Autenticacion API:** JWT tokens
+3. **Tests de API:** TestClient de FastAPI
+4. **CI/CD:** GitHub Actions
+5. **Docker:** Containerizacion
+6. **Mas datos:** Importar fondos reales al catalogo

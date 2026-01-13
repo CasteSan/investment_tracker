@@ -140,19 +140,27 @@ with FundService() as service:
 
 ```python
 from src.core.analytics import (
-    calculate_volatility,    # Riesgo anualizado
-    calculate_sharpe_ratio,  # Rendimiento ajustado
-    calculate_sortino_ratio, # Solo volatilidad negativa
-    calculate_beta,          # Sensibilidad mercado
-    calculate_alpha,         # Exceso sobre CAPM
-    calculate_var,           # Value at Risk
-    calculate_max_drawdown   # Maxima caida
+    calculate_volatility,       # Riesgo anualizado
+    calculate_sharpe_ratio,     # Rendimiento ajustado
+    calculate_sortino_ratio,    # Solo volatilidad negativa
+    calculate_beta,             # Sensibilidad mercado
+    calculate_alpha,            # Exceso sobre CAPM
+    calculate_var,              # Value at Risk
+    calculate_max_drawdown,     # Maxima caida
+    calculate_cagr_from_prices, # CAGR desde serie de precios
+    calculate_total_return,     # Retorno total
 )
 
 # Uso: esperan Series de RETORNOS (no precios)
 returns = prices.pct_change().dropna()
 sharpe = calculate_sharpe_ratio(returns, risk_free_rate=0.02)
+
+# CAGR desde serie de precios (no retornos)
+cagr = calculate_cagr_from_prices(prices_series)
 ```
+
+**IMPORTANTE:** Usar `calculate_cagr_from_prices(series)` para series de precios.
+NO usar `calculate_cagr()` directamente - requiere (start_value, end_value, years).
 
 ## Patron Repository (src/data/repositories/)
 
@@ -210,12 +218,47 @@ from src.core.analytics import calculate_sharpe_ratio
 - Divisas: EUR, USD, GBX, CAD
 - Campo `realized_gain_eur` para B/P en EUR
 
+## Database - Metodos de transacciones
+
+```python
+from src.data import Database
+
+db = Database()
+
+# Obtener transaccion por ID (para editar/borrar)
+trans = db.get_transaction_by_id(123)
+
+# Actualizar transaccion
+db.update_transaction(123, {'price': 10.50, 'quantity': 100})
+
+# Eliminar transaccion
+db.delete_transaction(123)
+
+db.close()
+```
+
+## Limitaciones conocidas
+
+### yfinance y fondos europeos (ISINs)
+
+**Problema:** yfinance NO tiene datos de la mayoria de fondos mutuos europeos.
+ISINs como `IE00BLP5S460`, `LU0996182563` no se encuentran.
+
+**Comportamiento actual:**
+- El sistema detecta si es ISIN (formato: 2 letras + 10 alfanumericos)
+- Intenta buscar el ticker correspondiente
+- Si falla, cachea el ISIN para no reintentar
+- Log: "ISIN X: sin datos en yfinance (fondo no disponible)"
+
+**Solucion futura:** Integrar API alternativa (Morningstar, Investing.com)
+
 ## Errores a evitar
 
 1. **Logica en UI** → Usar servicios (PortfolioService, FundService)
 2. **No cerrar conexiones** → Usar context managers
 3. **Tests manuales** → Usar pytest
 4. **Imports rotos** → src/database.py es shim de compatibilidad
+5. **calculate_cagr()** → Usar `calculate_cagr_from_prices()` para series
 
 ## Estado del proyecto
 

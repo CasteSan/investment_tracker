@@ -478,3 +478,104 @@ def plot_top_bottom_performers(df: pd.DataFrame,
     fig.update_yaxes(autorange="reversed", row=1, col=2)
 
     return fig
+
+
+def plot_portfolio_treemap(df: pd.DataFrame,
+                           size_col: str = 'weight',
+                           color_col: str = 'color_value',
+                           label_col: str = 'display_name',
+                           hover_name_col: str = 'name',
+                           title: str = "Mapa de Calor de la Cartera") -> go.Figure:
+    """
+    Gráfico de mapa de calor (treemap) para visualizar la cartera.
+
+    El tamaño de cada celda representa el peso en la cartera,
+    y el color representa el rendimiento (verde=positivo, rojo=negativo).
+
+    Args:
+        df: DataFrame con datos de la cartera
+        size_col: Columna para el tamaño de las celdas (peso %)
+        color_col: Columna para el color (rendimiento %)
+        label_col: Columna para las etiquetas (nombres truncados)
+        hover_name_col: Columna para el nombre completo en tooltip
+        title: Título del gráfico
+
+    Returns:
+        Figura de Plotly
+    """
+    import plotly.express as px
+
+    if df.empty:
+        # Devolver figura vacía con mensaje
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No hay datos para mostrar",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="gray")
+        )
+        fig.update_layout(height=400, template='plotly_white')
+        return fig
+
+    # Preparar datos para el treemap
+    plot_df = df.copy()
+
+    # Asegurar que weight sea positivo para el treemap
+    plot_df[size_col] = plot_df[size_col].abs()
+
+    # Crear texto personalizado para hover
+    plot_df['hover_text'] = plot_df.apply(
+        lambda r: (
+            f"<b>{r[hover_name_col]}</b><br>"
+            f"Valor: {r['market_value']:,.2f}€<br>"
+            f"Peso: {r['weight']:.1f}%<br>"
+            f"Rendimiento: {r[color_col]:+.2f}%"
+        ),
+        axis=1
+    )
+
+    # Crear treemap con plotly express
+    fig = px.treemap(
+        plot_df,
+        path=[label_col],
+        values=size_col,
+        color=color_col,
+        color_continuous_scale=[
+            [0.0, '#d62728'],    # Rojo fuerte (muy negativo)
+            [0.35, '#ff6b6b'],   # Rojo claro
+            [0.45, '#f0f0f0'],   # Gris claro (cercano a 0)
+            [0.55, '#f0f0f0'],   # Gris claro (cercano a 0)
+            [0.65, '#69db7c'],   # Verde claro
+            [1.0, '#2ca02c'],    # Verde fuerte (muy positivo)
+        ],
+        color_continuous_midpoint=0,
+        custom_data=[hover_name_col, 'market_value', 'weight', color_col],
+        title=title
+    )
+
+    # Personalizar hover template
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Valor: %{customdata[1]:,.2f}€<br>"
+            "Peso: %{customdata[2]:.1f}%<br>"
+            "Rendimiento: %{customdata[3]:+.2f}%"
+            "<extra></extra>"
+        ),
+        textinfo='label+percent entry',
+        textfont=dict(size=12)
+    )
+
+    # Configurar layout
+    fig.update_layout(
+        height=450,
+        template='plotly_white',
+        margin=dict(t=50, l=10, r=10, b=10),
+        coloraxis_colorbar=dict(
+            title="Rendimiento %",
+            tickformat="+.1f",
+            ticksuffix="%"
+        )
+    )
+
+    return fig

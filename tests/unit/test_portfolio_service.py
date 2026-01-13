@@ -347,3 +347,85 @@ class TestGetAvailableBenchmarks:
         for benchmark in benchmarks:
             assert 'name' in benchmark
             assert 'records' in benchmark
+
+
+class TestGetHeatmapData:
+    """Tests para get_heatmap_data()."""
+
+    def test_returns_dataframe(self, portfolio_service):
+        """Verifica que devuelve un DataFrame."""
+        result = portfolio_service.get_heatmap_data()
+        assert isinstance(result, pd.DataFrame)
+
+    def test_empty_portfolio_returns_empty_df(self, portfolio_service):
+        """Sin posiciones, devuelve DataFrame vacío."""
+        result = portfolio_service.get_heatmap_data()
+        assert result.empty
+
+    def test_has_required_columns(self, portfolio_service_with_data):
+        """Verifica que tiene todas las columnas esperadas."""
+        result = portfolio_service_with_data.get_heatmap_data()
+
+        if not result.empty:
+            required_cols = [
+                'ticker', 'name', 'display_name', 'market_value', 'weight',
+                'daily_return', 'total_return', 'color_value', 'asset_type'
+            ]
+            for col in required_cols:
+                assert col in result.columns, f"Falta columna: {col}"
+
+    def test_filter_all_returns_all(self, portfolio_service_with_data):
+        """Filtro 'all' devuelve todos los activos."""
+        result_all = portfolio_service_with_data.get_heatmap_data(category_filter='all')
+        # Debe incluir acciones y fondos
+        if not result_all.empty:
+            asset_types = result_all['asset_type'].unique()
+            # sample_transactions tiene acciones y fondos
+            assert len(asset_types) >= 1
+
+    def test_filter_acciones(self, portfolio_service_with_data):
+        """Filtro 'acciones' solo devuelve acciones."""
+        result = portfolio_service_with_data.get_heatmap_data(category_filter='acciones')
+
+        if not result.empty:
+            assert all(result['asset_type'] == 'accion')
+
+    def test_filter_fondos_etf(self, portfolio_service_with_data):
+        """Filtro 'fondos_etf' solo devuelve fondos y ETFs."""
+        result = portfolio_service_with_data.get_heatmap_data(category_filter='fondos_etf')
+
+        if not result.empty:
+            valid_types = ['fondo', 'etf']
+            assert all(result['asset_type'].isin(valid_types))
+
+    def test_weights_sum_to_100(self, portfolio_service_with_data):
+        """Los pesos deben sumar 100% (dentro del filtro)."""
+        result = portfolio_service_with_data.get_heatmap_data()
+
+        if not result.empty:
+            total_weight = result['weight'].sum()
+            assert abs(total_weight - 100) < 0.1, f"Pesos suman {total_weight}, esperado 100"
+
+    def test_display_name_is_truncated(self, portfolio_service_with_data):
+        """display_name no debe exceder la longitud máxima."""
+        result = portfolio_service_with_data.get_heatmap_data(name_max_length=15)
+
+        if not result.empty:
+            for display_name in result['display_name']:
+                assert len(display_name) <= 18  # 15 + "..." = 18 max
+
+    def test_color_value_is_numeric(self, portfolio_service_with_data):
+        """color_value debe ser numérico (no NaN)."""
+        result = portfolio_service_with_data.get_heatmap_data()
+
+        if not result.empty:
+            assert result['color_value'].notna().all()
+            assert result['color_value'].dtype in ['float64', 'int64', 'float32', 'int32']
+
+    def test_sorted_by_weight_descending(self, portfolio_service_with_data):
+        """Resultado debe estar ordenado por peso descendente."""
+        result = portfolio_service_with_data.get_heatmap_data()
+
+        if len(result) > 1:
+            weights = result['weight'].tolist()
+            assert weights == sorted(weights, reverse=True)

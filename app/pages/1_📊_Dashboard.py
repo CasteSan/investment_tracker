@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.charts import (
     plot_allocation_donut,
     plot_performance_bar,
-    plot_top_bottom_performers
+    plot_top_bottom_performers,
+    plot_portfolio_treemap
 )
 from components.tables import create_positions_table, display_styled_dataframe
 
@@ -148,6 +149,51 @@ try:
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Necesitas al menos 2 posiciones para este grafico")
+
+    st.divider()
+
+    # ==========================================================================
+    # MAPA DE CALOR (TREEMAP)
+    # ==========================================================================
+    st.markdown("### 🗺️ Mapa de Calor")
+
+    # Control de filtro por categoría
+    heatmap_filter_options = {
+        "Todos": "all",
+        "Fondos/ETF": "fondos_etf",
+        "Acciones": "acciones"
+    }
+
+    # Usar radio horizontal como segmented control
+    heatmap_filter_label = st.radio(
+        "Filtrar por tipo",
+        options=list(heatmap_filter_options.keys()),
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    heatmap_filter = heatmap_filter_options[heatmap_filter_label]
+
+    # Obtener datos para el heatmap
+    heatmap_df = service.get_heatmap_data(category_filter=heatmap_filter)
+
+    if not heatmap_df.empty:
+        fig = plot_portfolio_treemap(
+            heatmap_df,
+            size_col='weight',
+            color_col='color_value',
+            label_col='display_name',
+            hover_name_col='name',
+            title=""
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Leyenda informativa
+        st.caption(
+            "📊 **Tamaño:** Peso en cartera | "
+            "🎨 **Color:** Rendimiento diario (o total si no hay datos recientes)"
+        )
+    else:
+        st.info(f"No hay activos de tipo '{heatmap_filter_label}' en la cartera")
 
     st.divider()
 

@@ -764,6 +764,123 @@ class PortfolioService(BaseService):
 
         return allocation
 
+    def get_heatmap_data(
+        self,
+        category_filter: str = 'all',
+        name_max_length: int = 15
+    ) -> pd.DataFrame:
+        """
+        Obtiene datos para el mapa de calor (treemap) del dashboard.
+
+        Calcula el rendimiento diario de cada activo para determinar el color,
+        y usa el peso en cartera para el tamaño de cada celda.
+
+        Args:
+            category_filter: Filtro de categoría:
+                - 'all': Todos los activos
+                - 'fondos_etf': Solo fondos y ETFs
+                - 'acciones': Solo acciones
+            name_max_length: Longitud máxima para display_name
+
+        Returns:
+            DataFrame con columnas:
+                - ticker, name, display_name
+                - market_value, weight
+                - daily_return (% cambio vs ayer)
+                - total_return (% ganancia total, usado como fallback)
+                - asset_type
+        """
+        from datetime import timedelta
+
+        # Obtener posiciones actuales con precios de mercado
+        current_prices = self.db.get_all_latest_prices()
+        positions = self.portfolio.get_current_positions(current_prices=current_prices)
+
+        if positions.empty:
+            return pd.DataFrame()
+
+        # Filtrar posiciones con valor > 0
+        positions = positions[positions['market_value'] > 0].copy()
+
+        if positions.empty:
+            return pd.DataFrame()
+
+        # Aplicar filtro de categoría
+        if category_filter == 'fondos_etf':
+            positions = positions[positions['asset_type'].isin(['fondo', 'etf'])]
+        elif category_filter == 'acciones':
+            positions = positions[positions['asset_type'] == 'accion']
+
+        if positions.empty:
+            return pd.DataFrame()
+
+        # Calcular peso en cartera
+        total_value = positions['market_value'].sum()
+        positions['weight'] = (positions['market_value'] / total_value * 100)
+
+        # Calcular rendimiento diario para cada ticker
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        # Si ayer fue fin de semana, buscar el viernes
+        while yesterday.weekday() >= 5:  # 5=Sábado, 6=Domingo
+            yesterday -= timedelta(days=1)
+
+        daily_returns = []
+
+        for _, row in positions.iterrows():
+            ticker = row['ticker']
+            daily_return = None
+
+            try:
+                # Obtener precios de los últimos días
+                prices = self.market_data.get_ticker_prices(
+                    ticker,
+                    start_date=(yesterday - timedelta(days=7)).strftime('%Y-%m-%d'),
+                    end_date=today.strftime('%Y-%m-%d')
+                )
+
+                if not prices.empty and len(prices) >= 2:
+                    # Ordenar por fecha y tomar los dos últimos
+                    prices = prices.sort_values('date')
+                    latest_price = prices.iloc[-1]['adj_close']
+                    previous_price = prices.iloc[-2]['adj_close']
+
+                    if previous_price > 0:
+                        daily_return = ((latest_price - previous_price) / previous_price) * 100
+
+            except Exception as e:
+                logger.debug(f"No se pudo calcular rendimiento diario para {ticker}: {e}")
+
+            daily_returns.append(daily_return)
+
+        positions['daily_return'] = daily_returns
+
+        # Usar total_return como fallback cuando no hay daily_return
+        positions['total_return'] = positions['unrealized_gain_pct']
+
+        # Para el color, usar daily_return si existe, sino total_return
+        positions['color_value'] = positions.apply(
+            lambda r: r['daily_return'] if pd.notna(r['daily_return']) else r['total_return'],
+            axis=1
+        )
+
+        # Rellenar NaN con 0 para evitar errores en el gráfico
+        positions['color_value'] = positions['color_value'].fillna(0)
+        positions['daily_return'] = positions['daily_return'].fillna(positions['total_return'])
+
+        # Añadir display_name
+        positions['display_name'] = positions['name'].apply(
+            lambda x: smart_truncate(x, name_max_length) if x else ''
+        )
+
+        # Seleccionar y ordenar columnas
+        result = positions[[
+            'ticker', 'name', 'display_name', 'market_value', 'weight',
+            'daily_return', 'total_return', 'color_value', 'asset_type'
+        ]].copy()
+
+        return result.sort_values('weight', ascending=False)
+
     def has_positions(self) -> bool:
         """Verifica si hay posiciones en la cartera."""
         positions = self.portfolio.get_current_positions()

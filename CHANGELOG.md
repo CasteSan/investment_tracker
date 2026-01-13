@@ -6,6 +6,38 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/en/1.0.0
 
 ---
 
+## [1.2.0] - 2026-01-13
+
+### Added
+
+- **Multi-Portfolio (Multi-Cartera)**
+  - Soporte para multiples carteras independientes
+  - Cada cartera usa su propio archivo SQLite en `data/portfolios/`
+  - `ProfileManager` para gestionar perfiles de cartera
+  - Selector de cartera en sidebar con opcion de crear nuevas
+  - Funcionalidad de renombrar carteras
+  - Migracion automatica de `database.db` existente a `portfolios/Principal.db`
+
+- **Indicador de precios de mercado**
+  - Nueva columna `has_market_prices` en series de cartera
+  - Benchmarks filtra dias sin precios reales (evita linea plana)
+  - Advertencia clara cuando faltan precios de mercado
+
+### Fixed
+
+- **Sincronizacion de db_path en todas las paginas**
+  - `main.py` ahora usa precios de mercado (igual que Dashboard)
+  - `Benchmarks.py` usa db_path de cartera seleccionada
+  - `TaxCalculator` y `DividendManager` en PortfolioService usan db_path
+  - `Configuracion.py` usa db_path para limpiar cache y mostrar tamano BD
+
+### Testing
+
+- 184 tests unitarios (+21 nuevos para ProfileManager)
+- Tests de creacion, renombrado, duplicacion y eliminacion de perfiles
+
+---
+
 ## [1.1.0] - 2026-01-13
 
 ### Added

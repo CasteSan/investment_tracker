@@ -2,8 +2,8 @@
 
 ## Resumen
 
-**Version:** 1.0.0
-**Estado:** Proyecto completado y profesionalizado
+**Version:** 1.1.0
+**Estado:** Features de visualizacion completadas
 
 ## Progreso
 
@@ -12,18 +12,21 @@
 | Plan escalabilidad | ✅ 8/8 | Arquitectura hexagonal implementada |
 | Bug fixes | ✅ | get_transaction_by_id, calculate_cagr, yfinance |
 | Limpieza | ✅ | 39 archivos obsoletos eliminados |
+| Heatmap Dashboard | ✅ | Treemap interactivo con variacion diaria |
+| Etiquetas graficos | ✅ | Nombres de activos con truncado inteligente |
 
 ## Ultimo Commit
 
 ```
-0daea45 - chore: clean and professionalize project structure
+e14f132 - fix: correct daily change calculation and improve heatmap visuals
 ```
 
-**Cambios principales:**
-- Eliminados 39 archivos obsoletos (tests, tracking, datos personales)
-- Creados LICENSE, CONTRIBUTING.md, CHANGELOG.md
-- Consolidado Plan_escalabilidad en docs/architecture/
-- Actualizado .gitignore con reglas completas
+**Cambios v1.1.0:**
+- Heatmap interactivo en Dashboard (treemap con peso/color)
+- Etiquetas inteligentes en graficos (nombres truncados)
+- `smart_truncate()` para nombres > 15 caracteres
+- `get_latest_price_and_change()` para variacion robusta
+- 163 tests unitarios (+25 nuevos)
 
 ## Estructura Actual
 
@@ -35,10 +38,10 @@ investment_tracker/
 ├── scripts/                # Scripts utilitarios
 ├── src/                    # Codigo fuente
 │   ├── services/           # PortfolioService, FundService
-│   ├── core/analytics/     # Metricas (Sharpe, Beta, VaR)
+│   ├── core/               # utils.py, analytics/
 │   └── data/               # Database, Repositories
 ├── tests/
-│   ├── unit/               # 138 tests
+│   ├── unit/               # 163 tests
 │   └── scripts/            # Tests de scripts
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
@@ -53,7 +56,7 @@ streamlit run app/main.py
 uvicorn api.main:app --reload
 
 # Tests
-python -m pytest tests/unit/ -v   # 138 tests
+python -m pytest tests/unit/ -v   # 163 tests
 
 # Verificar
 python -c "from src.services import PortfolioService; print('OK')"
@@ -62,12 +65,13 @@ python -c "from src.services import PortfolioService; print('OK')"
 ## Tests
 
 ```
-138 passed in 9.62s
+163 passed in 22s
 
 - test_analytics.py: 32 tests
 - test_fund_repository.py: 37 tests
 - test_fund_service.py: 28 tests
-- test_portfolio_service.py: 41 tests
+- test_portfolio_service.py: 55 tests (+14)
+- test_utils.py: 11 tests (nuevo)
 ```
 
 ## Limitaciones Conocidas

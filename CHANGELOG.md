@@ -6,6 +6,35 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/en/1.0.0
 
 ---
 
+## [1.1.0] - 2026-01-13
+
+### Added
+
+- **Heatmap interactivo en Dashboard**
+  - Treemap con tamano proporcional al peso en cartera
+  - Color basado en variacion del ultimo dia de mercado (rojo/gris/verde)
+  - Filtros por categoria (Todos, Fondos/ETF, Acciones)
+  - Escala de color dinamica con percentil 95
+  - `MarketDataManager.get_latest_price_and_change()` para calculo robusto
+
+- **Etiquetas inteligentes en graficos**
+  - Nombres de activos en lugar de tickers
+  - Truncado inteligente (`smart_truncate()`) para nombres > 15 caracteres
+  - Nombres completos en tooltips
+
+### Changed
+
+- `PortfolioService.get_heatmap_data()` usa logica robusta de variacion diaria
+- `PortfolioService.enrich_with_display_names()` nuevo metodo
+- Graficos de donut, barras y treemap usan `display_name`
+
+### Testing
+
+- 163 tests unitarios (+25 nuevos)
+- Tests para `smart_truncate()` y `get_latest_price_and_change()`
+
+---
+
 ## [1.0.0] - 2026-01-13
 
 ### Arquitectura Hexagonal Refactor

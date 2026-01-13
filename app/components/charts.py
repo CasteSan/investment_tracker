@@ -71,42 +71,46 @@ def plot_portfolio_evolution(df: pd.DataFrame,
 
 
 def plot_allocation_donut(df: pd.DataFrame,
-                         labels_col: str = 'ticker',
+                         labels_col: str = 'display_name',
                          values_col: str = 'market_value',
-                         names_col: str = None,
+                         names_col: str = 'name',
                          title: str = "Distribución de Cartera") -> go.Figure:
     """
     Gráfico de donut con la distribución de la cartera.
-    
+
     Args:
         df: DataFrame con activos y valores
-        labels_col: Columna para etiquetas
+        labels_col: Columna para etiquetas (truncadas para visualización)
         values_col: Columna para valores
-        names_col: Columna para nombres (opcional)
+        names_col: Columna para nombres completos (en tooltip)
         title: Título del gráfico
-    
+
     Returns:
         Figura de Plotly
     """
-    labels = df[labels_col].tolist()
+    labels = df[labels_col].tolist() if labels_col in df.columns else df['ticker'].tolist()
     values = df[values_col].tolist()
-    
-    # Usar nombres si están disponibles
+
+    # Usar nombres completos para hover si están disponibles
     if names_col and names_col in df.columns:
-        hover_text = df[names_col].tolist()
+        hover_names = df[names_col].tolist()
     else:
-        hover_text = labels
-    
+        hover_names = labels
+
+    # Crear customdata para el hover con nombres completos
+    customdata = hover_names
+
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
         hole=0.4,
         textinfo='label+percent',
         textposition='outside',
-        hovertemplate="<b>%{label}</b><br>Valor: %{value:,.2f}€<br>Peso: %{percent}<extra></extra>",
+        customdata=customdata,
+        hovertemplate="<b>%{customdata}</b><br>Valor: %{value:,.2f}€<br>Peso: %{percent}<extra></extra>",
         marker=dict(colors=COLOR_PALETTE)
     )])
-    
+
     fig.update_layout(
         title=title,
         template='plotly_white',
@@ -120,43 +124,53 @@ def plot_allocation_donut(df: pd.DataFrame,
             x=0.5
         )
     )
-    
+
     return fig
 
 
 def plot_performance_bar(df: pd.DataFrame,
                         ticker_col: str = 'ticker',
                         performance_col: str = 'unrealized_gain_pct',
-                        name_col: str = None,
+                        name_col: str = 'name',
+                        display_name_col: str = 'display_name',
                         title: str = "Rentabilidad por Activo",
                         top_n: int = 10) -> go.Figure:
     """
     Gráfico de barras horizontales de rentabilidad.
-    
+
     Args:
         df: DataFrame con activos y rentabilidad
-        ticker_col: Columna de tickers
+        ticker_col: Columna de tickers (fallback)
         performance_col: Columna de rentabilidad
-        name_col: Columna de nombres (opcional)
+        name_col: Columna de nombres completos (para tooltip)
+        display_name_col: Columna de nombres truncados (para labels)
         title: Título del gráfico
         top_n: Número de activos a mostrar
-    
+
     Returns:
         Figura de Plotly
     """
     # Ordenar y tomar top_n
     df_sorted = df.nlargest(top_n, performance_col)
-    
+
     # Colores según ganancia/pérdida
-    colors = [COLORS['success'] if x >= 0 else COLORS['danger'] 
+    colors = [COLORS['success'] if x >= 0 else COLORS['danger']
               for x in df_sorted[performance_col]]
-    
-    # Labels
-    if name_col and name_col in df.columns:
+
+    # Labels para el eje Y (preferir display_name)
+    if display_name_col and display_name_col in df_sorted.columns:
+        labels = df_sorted[display_name_col].tolist()
+    elif name_col and name_col in df_sorted.columns:
         labels = df_sorted[name_col].tolist()
     else:
         labels = df_sorted[ticker_col].tolist()
-    
+
+    # Nombres completos para hover
+    if name_col and name_col in df_sorted.columns:
+        hover_names = df_sorted[name_col].tolist()
+    else:
+        hover_names = labels
+
     fig = go.Figure(go.Bar(
         x=df_sorted[performance_col],
         y=labels,
@@ -164,9 +178,10 @@ def plot_performance_bar(df: pd.DataFrame,
         marker_color=colors,
         text=[f"{x:+.2f}%" for x in df_sorted[performance_col]],
         textposition='outside',
-        hovertemplate="<b>%{y}</b><br>Rentabilidad: %{x:+.2f}%<extra></extra>"
+        customdata=hover_names,
+        hovertemplate="<b>%{customdata}</b><br>Rentabilidad: %{x:+.2f}%<extra></extra>"
     ))
-    
+
     fig.update_layout(
         title=title,
         xaxis_title="Rentabilidad (%)",
@@ -175,10 +190,10 @@ def plot_performance_bar(df: pd.DataFrame,
         height=max(300, top_n * 35),
         yaxis=dict(autorange="reversed")
     )
-    
+
     # Línea vertical en 0
     fig.add_vline(x=0, line_dash="dash", line_color="gray")
-    
+
     return fig
 
 
@@ -380,59 +395,86 @@ def plot_risk_gauge(value: float,
 def plot_top_bottom_performers(df: pd.DataFrame,
                                ticker_col: str = 'ticker',
                                perf_col: str = 'unrealized_gain_pct',
+                               name_col: str = 'name',
+                               display_name_col: str = 'display_name',
                                n: int = 5) -> go.Figure:
     """
     Gráfico de los mejores y peores performers.
-    
+
     Args:
         df: DataFrame con activos y rentabilidad
-        ticker_col: Columna de tickers
+        ticker_col: Columna de tickers (fallback si no hay nombres)
         perf_col: Columna de rentabilidad
+        name_col: Columna de nombres completos (para tooltip)
+        display_name_col: Columna de nombres truncados (para labels)
         n: Número de mejores/peores a mostrar
-    
+
     Returns:
         Figura de Plotly con subplots
     """
     from plotly.subplots import make_subplots
-    
+
     # Top n mejores
     top = df.nlargest(n, perf_col)
     # Top n peores
     bottom = df.nsmallest(n, perf_col)
-    
-    fig = make_subplots(rows=1, cols=2, 
+
+    # Determinar columna para labels (preferir display_name si existe)
+    if display_name_col in df.columns:
+        top_labels = top[display_name_col].tolist()
+        bottom_labels = bottom[display_name_col].tolist()
+    elif name_col in df.columns:
+        top_labels = top[name_col].tolist()
+        bottom_labels = bottom[name_col].tolist()
+    else:
+        top_labels = top[ticker_col].tolist()
+        bottom_labels = bottom[ticker_col].tolist()
+
+    # Nombres completos para hover
+    if name_col in df.columns:
+        top_hover = top[name_col].tolist()
+        bottom_hover = bottom[name_col].tolist()
+    else:
+        top_hover = top_labels
+        bottom_hover = bottom_labels
+
+    fig = make_subplots(rows=1, cols=2,
                         subplot_titles=(f"Top {n} Mejores", f"Top {n} Peores"),
                         horizontal_spacing=0.15)
-    
+
     # Mejores
     fig.add_trace(go.Bar(
-        y=top[ticker_col],
+        y=top_labels,
         x=top[perf_col],
         orientation='h',
         marker_color=COLORS['success'],
         text=[f"+{x:.1f}%" for x in top[perf_col]],
         textposition='outside',
+        customdata=top_hover,
+        hovertemplate="<b>%{customdata}</b><br>Rentabilidad: %{x:+.2f}%<extra></extra>",
         showlegend=False
     ), row=1, col=1)
-    
+
     # Peores
     fig.add_trace(go.Bar(
-        y=bottom[ticker_col],
+        y=bottom_labels,
         x=bottom[perf_col],
         orientation='h',
         marker_color=COLORS['danger'],
         text=[f"{x:.1f}%" for x in bottom[perf_col]],
         textposition='outside',
+        customdata=bottom_hover,
+        hovertemplate="<b>%{customdata}</b><br>Rentabilidad: %{x:+.2f}%<extra></extra>",
         showlegend=False
     ), row=1, col=2)
-    
+
     fig.update_layout(
         height=300,
         template='plotly_white'
     )
-    
+
     # Invertir orden del eje Y
     fig.update_yaxes(autorange="reversed", row=1, col=1)
     fig.update_yaxes(autorange="reversed", row=1, col=2)
-    
+
     return fig

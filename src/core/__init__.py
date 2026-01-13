@@ -33,7 +33,11 @@ from src.core.analytics import (
     calculate_total_return,
 )
 
+from src.core.utils import smart_truncate
+
 __all__ = [
+    # Utils
+    'smart_truncate',
     'calculate_volatility',
     'calculate_var',
     'calculate_cvar',

@@ -45,6 +45,7 @@ try:
         calculate_cagr_from_prices,
         calculate_total_return,
     )
+    from src.core.utils import smart_truncate
 except ImportError:
     from services.base import BaseService, ServiceResult
     from portfolio import Portfolio
@@ -64,6 +65,7 @@ except ImportError:
         calculate_cagr_from_prices,
         calculate_total_return,
     )
+    from core.utils import smart_truncate
 
 logger = get_logger(__name__)
 
@@ -323,6 +325,31 @@ class PortfolioService(BaseService):
             df['weight'] = (df['market_value'] / total_value * 100)
         else:
             df['weight'] = 0.0
+
+        return df
+
+    def enrich_with_display_names(
+        self,
+        positions: pd.DataFrame,
+        max_length: int = 15
+    ) -> pd.DataFrame:
+        """
+        Añade columna 'display_name' con nombres truncados para gráficos.
+
+        Args:
+            positions: DataFrame de posiciones con columna 'name'
+            max_length: Longitud máxima del nombre truncado
+
+        Returns:
+            DataFrame con columna 'display_name' añadida
+        """
+        if positions.empty or 'name' not in positions.columns:
+            return positions
+
+        df = positions.copy()
+        df['display_name'] = df['name'].apply(
+            lambda x: smart_truncate(x, max_length) if x else ''
+        )
 
         return df
 
@@ -710,12 +737,15 @@ class PortfolioService(BaseService):
 
         return positions
 
-    def get_allocation_data(self) -> pd.DataFrame:
+    def get_allocation_data(self, name_max_length: int = 15) -> pd.DataFrame:
         """
         Obtiene datos de asignación para gráfico de donut.
 
+        Args:
+            name_max_length: Longitud máxima para display_name (default 15)
+
         Returns:
-            DataFrame con columnas: ticker, name, market_value
+            DataFrame con columnas: ticker, name, display_name, market_value
             Solo incluye posiciones con valor > 0
         """
         current_prices = self.db.get_all_latest_prices()
@@ -726,6 +756,11 @@ class PortfolioService(BaseService):
 
         allocation = positions[['ticker', 'name', 'market_value']].copy()
         allocation = allocation[allocation['market_value'] > 0]
+
+        # Añadir nombre truncado para labels de gráficos
+        allocation['display_name'] = allocation['name'].apply(
+            lambda x: smart_truncate(x, name_max_length)
+        )
 
         return allocation
 

@@ -82,6 +82,7 @@ try:
     positions = service.filter_positions(positions, asset_type_filter)
     positions = service.sort_positions(positions, sort_by)
     positions = service.enrich_with_weights(positions)
+    positions = service.enrich_with_display_names(positions)
 
     # ==========================================================================
     # METRICAS PRINCIPALES (solo renderizado UI)
@@ -126,7 +127,7 @@ try:
         if not allocation_df.empty:
             fig = plot_allocation_donut(
                 allocation_df,
-                labels_col='ticker',
+                labels_col='display_name',
                 values_col='market_value',
                 names_col='name'
             )

@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT_DIR))
 from src.portfolio import Portfolio
 from src.database import Database
 from src.services.portfolio_service import PortfolioService
+from src.core.utils import smart_truncate
 
 # Importar componentes
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -71,7 +72,13 @@ try:
     if positions.empty:
         st.warning("⚠️ No hay posiciones en la cartera")
         st.stop()
-    
+
+    # Añadir nombres truncados para gráficos
+    if 'name' in positions.columns:
+        positions['display_name'] = positions['name'].apply(
+            lambda x: smart_truncate(x, 15) if x else ''
+        )
+
     # Aplicar filtros
     if asset_filter and 'asset_type' in positions.columns:
         positions = positions[positions['asset_type'].isin(asset_filter)]
@@ -325,12 +332,13 @@ try:
         else:
             show_top = num_positions  # Si solo hay 1 posición, mostrar esa
     
-    # Gráfico de barras
+    # Gráfico de barras (usa display_name para labels, name para tooltip)
     fig = plot_performance_bar(
         positions_sorted.head(show_top),
         ticker_col='ticker',
         performance_col='unrealized_gain_pct',
         name_col='name',
+        display_name_col='display_name',
         title=f"Top {show_top} por Rentabilidad",
         top_n=show_top
     )
@@ -410,7 +418,7 @@ try:
         st.markdown("#### Por Activo")
         fig = plot_allocation_donut(
             positions,
-            labels_col='ticker',
+            labels_col='display_name',
             values_col='market_value',
             names_col='name',
             title=""

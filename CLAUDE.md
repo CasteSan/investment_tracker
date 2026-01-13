@@ -58,35 +58,39 @@ pip install -r requirements.txt
 ## Estructura de carpetas
 
 ```
-src/
-├── services/           # Capa de servicios (orquestadores)
-│   ├── base.py         # BaseService (clase abstracta)
-│   ├── portfolio_service.py  # Dashboard, metricas avanzadas
-│   └── fund_service.py       # Catalogo de fondos
-├── core/               # Logica pura (sin BD/UI)
-│   └── analytics/      # Sharpe, Beta, VaR, Volatilidad, etc.
-├── data/               # Capa de datos
-│   ├── database.py     # Database, modelos base
-│   ├── models.py       # Fund (catalogo fondos)
-│   ├── repositories/   # Patron Repository
-│   │   └── fund_repository.py
-│   └── migrations/     # Scripts de migracion
-├── database.py         # [SHIM] Re-exporta desde data/
-├── portfolio.py        # Calculos de cartera
-├── tax_calculator.py   # Calculos fiscales
-├── dividends.py        # Gestion dividendos
-└── exceptions.py       # Excepciones de dominio
-
-app/                    # UI Streamlit
-├── pages/              # 1_Dashboard, 3_Analisis, 8_Buscador_Fondos, etc.
-└── components/         # Componentes reutilizables
-
-tests/                  # Tests pytest (138 tests)
-├── conftest.py         # Fixtures compartidas
-└── unit/               # test_analytics, test_portfolio_service,
-                        # test_fund_repository, test_fund_service
-
-api/                    # FastAPI (Sesion 8)
+investment_tracker/
+├── api/                    # FastAPI REST API
+│   └── main.py             # Endpoints
+├── app/                    # UI Streamlit
+│   ├── pages/              # 8 paginas
+│   └── components/         # Componentes reutilizables
+├── docs/                   # Documentacion
+│   └── architecture/       # Plan de escalabilidad consolidado
+├── scripts/                # Scripts utilitarios
+├── src/                    # Codigo fuente
+│   ├── services/           # Capa de servicios
+│   │   ├── base.py         # BaseService
+│   │   ├── portfolio_service.py
+│   │   └── fund_service.py
+│   ├── core/               # Logica pura
+│   │   └── analytics/      # Metricas (Sharpe, Beta, VaR)
+│   ├── data/               # Capa de datos
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   ├── repositories/
+│   │   └── migrations/
+│   ├── portfolio.py        # Calculos de cartera
+│   ├── tax_calculator.py   # Calculos fiscales
+│   ├── dividends.py        # Gestion dividendos
+│   └── database.py         # [SHIM] Compatibilidad
+├── tests/                  # Tests pytest (138)
+│   ├── conftest.py
+│   ├── unit/               # Tests unitarios
+│   └── scripts/            # Tests de scripts
+├── CHANGELOG.md            # Historial de versiones
+├── CONTRIBUTING.md         # Guia de contribucion
+├── LICENSE                 # MIT
+└── README.md               # Documentacion principal
 ```
 
 ## Servicios disponibles
@@ -262,15 +266,9 @@ ISINs como `IE00BLP5S460`, `LU0996182563` no se encuentran.
 
 ## Estado del proyecto
 
-Plan de escalabilidad: **8/8 sesiones completadas** ✅
-
-| Sesion | Descripcion |
-|--------|-------------|
-| 1-4 | Estructura, servicios, pytest, analytics |
-| 5 | Integracion metricas en UI |
-| 6 | Modelo Fund y FundRepository |
-| 7 | FundService y UI Buscador |
-| 8 | FastAPI Demo ✅ |
+**Version:** 1.0.0 (ver CHANGELOG.md)
+**Plan de escalabilidad:** 8/8 sesiones completadas ✅
+**Limpieza:** Proyecto profesionalizado (39 archivos obsoletos eliminados)
 
 ## API FastAPI (api/)
 
@@ -290,8 +288,15 @@ data = r.json()
 print(f"Valor cartera: {data['metrics']['total_value']}")
 ```
 
-## Archivos ignorados
+## Archivos ignorados (.gitignore)
 
-- `data/database.db`, `data/*.db`
+- `data/*.db`, `data/*.csv` (excepto ejemplo_transacciones.csv)
 - `data/exports/`, `data/benchmark_data/`
-- `venv/`, `__pycache__/`, `*.log`
+- `venv/`, `__pycache__/`, `*.log`, `.pytest_cache/`
+- `.claude/`, `.vscode/`, `.idea/`
+
+## Documentacion adicional
+
+- `CHANGELOG.md` - Historial de versiones
+- `CONTRIBUTING.md` - Normas de desarrollo
+- `docs/architecture/` - Plan de escalabilidad consolidado

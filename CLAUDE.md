@@ -12,19 +12,19 @@ Python 3.10+ | SQLite + SQLAlchemy | Pandas/NumPy | Streamlit + Plotly
 # Ejecutar app
 streamlit run app/main.py
 
-# Tests con pytest (RECOMENDADO)
-pytest                                    # Todos los tests
-pytest tests/unit/ -v                     # Solo unitarios
-pytest tests/unit/test_portfolio_service.py -v  # Archivo especifico
+# Tests con pytest (138 tests)
+python -m pytest tests/unit/ -v           # Todos los unitarios
+python -m pytest tests/unit/ -q           # Modo rapido
+python -m pytest tests/unit/test_fund_service.py -v  # Archivo especifico
 
-# Tests legacy (raiz)
-python test_portfolio.py
+# Migraciones
+python -m src.data.migrations.001_create_funds_table  # Crear tabla funds
 
 # Instalar dependencias
 pip install -r requirements.txt
 ```
 
-## Arquitectura (Refactorizada)
+## Arquitectura (Refactorizada - Sesiones 1-7)
 
 ```
                     ┌─────────────────────────────┐
@@ -34,77 +34,109 @@ pip install -r requirements.txt
                                    │
                     ┌──────────────▼──────────────┐
                     │    SERVICIOS (src/services/) │
-                    │  PortfolioService (puente)   │
+                    │ PortfolioService, FundService│
                     └──────────────┬──────────────┘
                                    │
         ┌──────────────────────────┼──────────────────────────┐
         │                          │                          │
 ┌───────▼───────┐    ┌─────────────▼─────────────┐   ┌────────▼────────┐
 │ CORE (analytics)│    │   NEGOCIO (src/*.py)      │   │  DATOS (src/data)│
-│ Metricas puras  │    │ Portfolio, Tax, Dividends │   │    Database      │
-└─────────────────┘    └───────────────────────────┘   └──────────────────┘
+│ Metricas puras  │    │ Portfolio, Tax, Dividends │   │ Database, Models │
+└─────────────────┘    └───────────────────────────┘   │ Repositories     │
+                                                       └──────────────────┘
 ```
 
 ## Estructura de carpetas
 
 ```
 src/
-├── services/           # [NUEVO] Capa de servicios
+├── services/           # Capa de servicios (orquestadores)
 │   ├── base.py         # BaseService (clase abstracta)
-│   └── portfolio_service.py  # Orquestador para Dashboard
-├── core/               # [NUEVO] Logica pura
-│   └── analytics/      # Metricas: Sharpe, Beta, VaR, etc.
-├── data/               # [NUEVO] Capa de datos
-│   └── database.py     # Database, modelos SQLAlchemy
-├── database.py         # [COMPATIBILIDAD] Re-exporta desde data/
+│   ├── portfolio_service.py  # Dashboard, metricas avanzadas
+│   └── fund_service.py       # Catalogo de fondos
+├── core/               # Logica pura (sin BD/UI)
+│   └── analytics/      # Sharpe, Beta, VaR, Volatilidad, etc.
+├── data/               # Capa de datos
+│   ├── database.py     # Database, modelos base
+│   ├── models.py       # Fund (catalogo fondos)
+│   ├── repositories/   # Patron Repository
+│   │   └── fund_repository.py
+│   └── migrations/     # Scripts de migracion
+├── database.py         # [SHIM] Re-exporta desde data/
 ├── portfolio.py        # Calculos de cartera
 ├── tax_calculator.py   # Calculos fiscales
 ├── dividends.py        # Gestion dividendos
-└── exceptions.py       # [NUEVO] Excepciones de dominio
+└── exceptions.py       # Excepciones de dominio
 
 app/                    # UI Streamlit
-├── pages/              # Paginas (1_Dashboard.py, etc.)
+├── pages/              # 1_Dashboard, 3_Analisis, 8_Buscador_Fondos, etc.
 └── components/         # Componentes reutilizables
 
-tests/                  # [NUEVO] Tests pytest
+tests/                  # Tests pytest (138 tests)
 ├── conftest.py         # Fixtures compartidas
-├── unit/               # Tests unitarios
-└── integration/        # Tests de integracion
+└── unit/               # test_analytics, test_portfolio_service,
+                        # test_fund_repository, test_fund_service
 
-api/                    # [NUEVO] FastAPI (futuro)
+api/                    # FastAPI (Sesion 8)
 ```
 
-## Patron de uso: PortfolioService
+## Servicios disponibles
+
+### PortfolioService - Cartera y metricas
 
 ```python
-# ANTES (acoplado)
-from src.portfolio import Portfolio
-from src.database import Database
-from src.tax_calculator import TaxCalculator
+from src.services import PortfolioService
 
-portfolio = Portfolio()
-db = Database()
-tax = TaxCalculator()
-# ... logica dispersa en UI ...
+with PortfolioService() as service:
+    # Dashboard
+    data = service.get_dashboard_data(fiscal_year=2024)
 
-# AHORA (desacoplado)
-from src.services.portfolio_service import PortfolioService
+    # Metricas avanzadas (Sharpe, Beta, Alpha, VaR, etc.)
+    metrics = service.get_portfolio_metrics(
+        start_date='2024-01-01',
+        benchmark_name='SP500',
+        risk_free_rate=0.02
+    )
 
-service = PortfolioService()
-data = service.get_dashboard_data(fiscal_year=2024)
+    print(f"Sharpe: {metrics['performance']['sharpe_ratio']:.2f}")
+    print(f"Beta: {metrics['risk']['beta']:.2f}")
+```
 
-# UI solo renderiza
-st.metric("Valor Total", f"{data['metrics']['total_value']:,.2f}EUR")
-service.close()
+### FundService - Catalogo de fondos
+
+```python
+from src.services import FundService
+
+with FundService() as service:
+    # Buscar fondos
+    funds = service.search_funds(
+        category='Renta Variable',
+        max_ter=1.0,
+        min_rating=4,
+        order_by='return_1y',
+        order_desc=True
+    )
+
+    # Helpers
+    low_cost = service.find_low_cost_funds(max_ter=0.5)
+    top_rated = service.find_top_rated_funds(min_rating=5)
+
+    # Importar fondos
+    service.import_funds_bulk([
+        {'isin': 'IE00B3RBWM25', 'name': 'Vanguard...', 'ter': 0.22},
+    ])
 ```
 
 ## Metricas Analytics (src/core/analytics/)
 
 ```python
 from src.core.analytics import (
-    calculate_volatility,    # Riesgo
+    calculate_volatility,    # Riesgo anualizado
     calculate_sharpe_ratio,  # Rendimiento ajustado
+    calculate_sortino_ratio, # Solo volatilidad negativa
     calculate_beta,          # Sensibilidad mercado
+    calculate_alpha,         # Exceso sobre CAPM
+    calculate_var,           # Value at Risk
     calculate_max_drawdown   # Maxima caida
 )
 
@@ -113,51 +145,56 @@ returns = prices.pct_change().dropna()
 sharpe = calculate_sharpe_ratio(returns, risk_free_rate=0.02)
 ```
 
-## Metricas Avanzadas via Servicio
+## Patron Repository (src/data/repositories/)
 
 ```python
-from src.services import PortfolioService
+from src.data import Database
+from src.data.repositories import FundRepository
 
-with PortfolioService() as service:
-    metrics = service.get_portfolio_metrics(
-        start_date='2024-01-01',
-        benchmark_name='SP500',
-        risk_free_rate=0.02
-    )
+db = Database()
+repo = FundRepository(db.session)
 
-    # Riesgo
-    print(f"Volatilidad: {metrics['risk']['volatility']:.2%}")
-    print(f"Beta: {metrics['risk']['beta']:.2f}")
-    print(f"Max Drawdown: {metrics['risk']['max_drawdown']:.2%}")
+# Busqueda avanzada con 20+ filtros
+funds = repo.search(
+    category='Renta Variable',
+    max_ter=1.0,
+    min_rating=4,
+    order_by='return_1y'
+)
 
-    # Rendimiento
-    print(f"Sharpe: {metrics['performance']['sharpe_ratio']:.2f}")
-    print(f"Alpha: {metrics['performance']['alpha']:.2%}")
+# CRUD
+fund = repo.get_by_isin('IE00B3RBWM25')
+repo.upsert({'isin': '...', 'name': '...', 'ter': 0.5})
+
+db.close()
 ```
 
 ## Convenciones
 
 ### Imports
 ```python
-# Preferir imports desde servicios
-from src.services import PortfolioService
+# Servicios (preferido)
+from src.services import PortfolioService, FundService
 
-# Base de datos (compatibilidad mantenida)
-from src.database import Database  # Funciona igual que antes
-from src.data import Database      # Nueva ubicacion
+# Modelos
+from src.data import Database, Fund
+from src.data.repositories import FundRepository
+
+# Analytics
+from src.core.analytics import calculate_sharpe_ratio
 ```
 
 ### Servicios
 - Heredan de `BaseService`
-- Soportan context manager: `with PortfolioService() as s:`
-- Siempre cerrar con `.close()`
+- Soportan context manager: `with Service() as s:`
+- Siempre cerrar con `.close()` si no usas context manager
 
 ### Tests
-- Usar pytest, no tests manuales
+- Usar pytest (138 tests actuales)
 - Fixtures en `tests/conftest.py`
-- BD temporal automatica con `temp_db_path` fixture
+- BD temporal con fixture `temp_db_path`
 
-## Reglas fiscales (España)
+## Reglas fiscales (Espana)
 
 - Metodo: **FIFO** (First In First Out)
 - Retencion dividendos: 19%
@@ -166,10 +203,22 @@ from src.data import Database      # Nueva ubicacion
 
 ## Errores a evitar
 
-1. **Logica en UI** → Usar PortfolioService
+1. **Logica en UI** → Usar servicios (PortfolioService, FundService)
 2. **No cerrar conexiones** → Usar context managers
 3. **Tests manuales** → Usar pytest
 4. **Imports rotos** → src/database.py es shim de compatibilidad
+
+## Estado del proyecto
+
+Plan de escalabilidad: **7/8 sesiones completadas**
+
+| Sesion | Descripcion |
+|--------|-------------|
+| 1-4 | Estructura, servicios, pytest, analytics |
+| 5 | Integracion metricas en UI |
+| 6 | Modelo Fund y FundRepository |
+| 7 | FundService y UI Buscador |
+| 8 | FastAPI Demo (pendiente) |
 
 ## Archivos ignorados
 

@@ -1,7 +1,7 @@
 """
 Capa de Servicios (Service Layer)
 
-Esta capa actúa como puente entre la UI (Streamlit/FastAPI) y la lógica
+Esta capa actua como puente entre la UI (Streamlit/FastAPI) y la logica
 de negocio (Core). Los servicios:
 
 - Orquestan operaciones complejas
@@ -10,22 +10,27 @@ de negocio (Core). Los servicios:
 - Manejan transacciones y errores de dominio
 
 Servicios disponibles:
-- PortfolioService: Gestión de cartera y posiciones (futuro)
-- ReportService: Generación de informes (futuro)
-- FundService: Catálogo de fondos (futuro)
+- PortfolioService: Gestion de cartera y posiciones
+- FundService: Catalogo de fondos de inversion
+- ReportService: Generacion de informes (futuro)
 
 Uso:
-    from src.services import PortfolioService
+    from src.services import PortfolioService, FundService
 
-    service = PortfolioService()
-    data = service.get_dashboard_data()
+    with PortfolioService() as service:
+        data = service.get_dashboard_data()
+
+    with FundService() as fund_svc:
+        funds = fund_svc.search_funds(category='Renta Variable')
 """
 
 from src.services.base import BaseService, ServiceResult
 from src.services.portfolio_service import PortfolioService
+from src.services.fund_service import FundService
 
 __all__ = [
     'BaseService',
     'ServiceResult',
     'PortfolioService',
+    'FundService',
 ]

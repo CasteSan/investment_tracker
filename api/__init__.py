@@ -1,25 +1,29 @@
 """
 API Module - FastAPI REST API
 
-Este módulo contendrá la API REST para exponer los servicios
-a clientes externos (web frontend, móvil, etc.)
+API REST que demuestra la escalabilidad de la arquitectura.
+Consume los MISMOS servicios que Streamlit (PortfolioService, FundService).
 
-Estructura planificada:
-- main.py: Aplicación FastAPI y configuración
-- routes/: Endpoints organizados por dominio
-  - portfolio.py: /api/portfolio/*
-  - transactions.py: /api/transactions/*
-  - reports.py: /api/reports/*
-- auth/: Autenticación y autorización
-  - jwt.py: Tokens JWT
-  - permissions.py: Roles y permisos
-- schemas/: Modelos Pydantic para request/response
+Endpoints:
+    GET  /                    - Health check
+    GET  /dashboard           - Datos del dashboard
+    GET  /dashboard/metrics   - Metricas avanzadas (Sharpe, Beta, etc.)
+    GET  /funds               - Buscar fondos
+    GET  /funds/{isin}        - Detalle de fondo
+    GET  /benchmarks          - Benchmarks disponibles
+    GET  /funds/stats/catalog - Estadisticas del catalogo
 
-Nota: Esta API consumirá los MISMOS servicios que Streamlit,
-demostrando la escalabilidad de la arquitectura.
-
-Uso futuro:
+Uso:
     uvicorn api.main:app --reload
+
+    # Con host y puerto especificos
+    uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+Documentacion interactiva:
+    http://localhost:8000/docs     (Swagger UI)
+    http://localhost:8000/redoc    (ReDoc)
 """
 
-__all__ = []
+from api.main import app
+
+__all__ = ["app"]

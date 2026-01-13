@@ -2,7 +2,7 @@
 
 ## Resumen de Progreso
 
-**Plan de escalabilidad en curso** - 7 de 8 sesiones completadas.
+**Plan de escalabilidad COMPLETADO** - 8 de 8 sesiones finalizadas.
 
 | Sesion | Estado | Descripcion |
 |--------|--------|-------------|
@@ -13,55 +13,71 @@
 | 5 | ✅ | Integracion Analytics en UI |
 | 6 | ✅ | Modelo de datos de Fondos |
 | 7 | ✅ | UI Catalogo de Fondos |
-| 8 | ⏳ | FastAPI Demo |
+| 8 | ✅ | FastAPI Demo |
 
-## Proxima Sesion: 8 - FastAPI Demo
+## Ultima Sesion Completada: 8 - FastAPI Demo
 
-**Objetivo:** Demostrar que la arquitectura permite exponer la MISMA logica via API.
+**Objetivo cumplido:** Demostrar que la arquitectura permite exponer la MISMA logica via API REST.
 
-**Acciones:**
-1. Instalar fastapi y uvicorn
-2. Crear `api/main.py`
-3. Crear ruta GET /dashboard que use PortfolioService
+**Archivos creados:**
+- `api/main.py` - API FastAPI con endpoints
+- `Plan_escalabilidad/commit_session8.md` - Documentacion
 
-**Archivos a crear:**
-- `api/main.py`
+**Endpoints disponibles:**
+- `GET /` - Health check
+- `GET /dashboard` - Datos del dashboard
+- `GET /dashboard/metrics` - Metricas avanzadas
+- `GET /funds` - Buscar fondos
+- `GET /funds/{isin}` - Detalle de fondo
 
-## Archivos Clave por Sesion
+## Comandos Principales
 
-### Sesion 1-4 (Base)
-```
-src/data/database.py, src/services/base.py, src/exceptions.py
-src/services/portfolio_service.py
-tests/conftest.py, pytest.ini
-src/core/analytics/risk.py, src/core/analytics/performance.py
-```
+```bash
+# App Streamlit
+streamlit run app/main.py
 
-### Sesion 5 - Integracion Analytics
-```
-src/services/portfolio_service.py   # +get_portfolio_metrics()
-app/pages/3_📈_Analisis.py          # Metricas avanzadas UI
-```
+# API FastAPI
+uvicorn api.main:app --reload
+# Documentacion: http://localhost:8000/docs
 
-### Sesion 6 - Modelo de Fondos
-```
-src/data/models.py                  # Modelo Fund
-src/data/repositories/fund_repository.py
-src/data/migrations/001_create_funds_table.py
-tests/unit/test_fund_repository.py  # 37 tests
+# Tests (138 tests)
+python -m pytest tests/unit/ -v
+
+# Verificar imports
+python -c "from api.main import app; print('API OK')"
+python -c "from src.services import PortfolioService, FundService; print('Services OK')"
 ```
 
-### Sesion 7 - UI Catalogo de Fondos
+## Arquitectura Final
+
 ```
-src/services/fund_service.py        # FundService
-app/pages/8_🔍_Buscador_Fondos.py   # Pagina buscador
-tests/unit/test_fund_service.py     # 28 tests
+┌─────────────────────────────────────────────────────────┐
+│              INTERFACES (Adaptadores)                    │
+├─────────────────────┬───────────────────────────────────┤
+│   Streamlit (app/)  │       FastAPI (api/)              │
+│   UI Web            │       REST API                    │
+└─────────┬───────────┴───────────────┬───────────────────┘
+          │                           │
+          └─────────────┬─────────────┘
+                        │
+          ┌─────────────▼─────────────┐
+          │  SERVICIOS (Puerto)        │
+          │  PortfolioService          │
+          │  FundService               │
+          └─────────────┬─────────────┘
+                        │
+    ┌───────────────────┼───────────────────┐
+    │                   │                   │
+┌───▼────┐    ┌─────────▼─────────┐    ┌───▼───┐
+│  CORE  │    │      NEGOCIO      │    │ DATOS │
+│Analytics│    │ Portfolio, Tax    │    │ DB    │
+└────────┘    └───────────────────┘    └───────┘
 ```
 
 ## Tests Actuales
 
 ```bash
-pytest tests/unit/ -v    # 138 tests deben pasar
+pytest tests/unit/ -v    # 138 tests
 
 # Desglose:
 # - test_analytics.py: 32 tests
@@ -70,18 +86,12 @@ pytest tests/unit/ -v    # 138 tests deben pasar
 # - test_portfolio_service.py: 41 tests
 ```
 
-## Comandos Utiles
+## Proximos Pasos Sugeridos
 
-```bash
-# Tests
-python -m pytest tests/unit/ -v
+El plan de escalabilidad esta completo. Mejoras opcionales:
 
-# Crear tabla funds
-python -m src.data.migrations.001_create_funds_table
-
-# Verificar imports
-python -c "from src.services import FundService; print('OK')"
-
-# App
-streamlit run app/main.py
-```
+1. **Autenticacion API:** JWT tokens
+2. **Tests de API:** TestClient de FastAPI
+3. **CI/CD:** GitHub Actions
+4. **Docker:** Containerizacion
+5. **Mas datos:** Importar fondos reales al catalogo

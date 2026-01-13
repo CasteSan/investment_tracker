@@ -9,8 +9,12 @@ Python 3.10+ | SQLite + SQLAlchemy | Pandas/NumPy | Streamlit + Plotly
 ## Comandos esenciales
 
 ```bash
-# Ejecutar app
+# Ejecutar app Streamlit
 streamlit run app/main.py
+
+# Ejecutar API FastAPI
+uvicorn api.main:app --reload
+# Documentacion: http://localhost:8000/docs
 
 # Tests con pytest (138 tests)
 python -m pytest tests/unit/ -v           # Todos los unitarios
@@ -24,26 +28,31 @@ python -m src.data.migrations.001_create_funds_table  # Crear tabla funds
 pip install -r requirements.txt
 ```
 
-## Arquitectura (Refactorizada - Sesiones 1-7)
+## Arquitectura (Completa - Sesiones 1-8)
 
 ```
-                    ┌─────────────────────────────┐
-                    │      PRESENTACION (app/)     │
-                    │   Streamlit - Solo UI        │
-                    └──────────────┬──────────────┘
-                                   │
-                    ┌──────────────▼──────────────┐
-                    │    SERVICIOS (src/services/) │
-                    │ PortfolioService, FundService│
-                    └──────────────┬──────────────┘
-                                   │
-        ┌──────────────────────────┼──────────────────────────┐
-        │                          │                          │
-┌───────▼───────┐    ┌─────────────▼─────────────┐   ┌────────▼────────┐
-│ CORE (analytics)│    │   NEGOCIO (src/*.py)      │   │  DATOS (src/data)│
-│ Metricas puras  │    │ Portfolio, Tax, Dividends │   │ Database, Models │
-└─────────────────┘    └───────────────────────────┘   │ Repositories     │
-                                                       └──────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│              INTERFACES (Adaptadores)                    │
+├─────────────────────┬───────────────────────────────────┤
+│   Streamlit (app/)  │       FastAPI (api/)              │
+│   UI Web            │       REST API                    │
+└─────────┬───────────┴───────────────┬───────────────────┘
+          │                           │
+          └─────────────┬─────────────┘
+                        │
+          ┌─────────────▼─────────────┐
+          │  SERVICIOS (src/services/) │
+          │  PortfolioService          │
+          │  FundService               │
+          └─────────────┬─────────────┘
+                        │
+    ┌───────────────────┼───────────────────┐
+    │                   │                   │
+┌───▼────────┐  ┌───────▼───────┐   ┌───────▼────────┐
+│ CORE       │  │ NEGOCIO       │   │ DATOS          │
+│ analytics/ │  │ Portfolio,Tax │   │ Database,Models│
+│ Metricas   │  │ Dividends     │   │ Repositories   │
+└────────────┘  └───────────────┘   └────────────────┘
 ```
 
 ## Estructura de carpetas
@@ -210,7 +219,7 @@ from src.core.analytics import calculate_sharpe_ratio
 
 ## Estado del proyecto
 
-Plan de escalabilidad: **7/8 sesiones completadas**
+Plan de escalabilidad: **8/8 sesiones completadas** ✅
 
 | Sesion | Descripcion |
 |--------|-------------|
@@ -218,7 +227,25 @@ Plan de escalabilidad: **7/8 sesiones completadas**
 | 5 | Integracion metricas en UI |
 | 6 | Modelo Fund y FundRepository |
 | 7 | FundService y UI Buscador |
-| 8 | FastAPI Demo (pendiente) |
+| 8 | FastAPI Demo ✅ |
+
+## API FastAPI (api/)
+
+```python
+# Endpoints disponibles
+GET  /                    # Health check
+GET  /dashboard           # Datos del dashboard
+GET  /dashboard/metrics   # Metricas avanzadas (Sharpe, Beta, VaR)
+GET  /funds               # Buscar fondos con filtros
+GET  /funds/{isin}        # Detalle de fondo
+GET  /benchmarks          # Benchmarks disponibles
+
+# Ejemplo de uso
+import requests
+r = requests.get("http://localhost:8000/dashboard")
+data = r.json()
+print(f"Valor cartera: {data['metrics']['total_value']}")
+```
 
 ## Archivos ignorados
 

@@ -263,3 +263,87 @@ class TestAssetTypeMap:
         assert 'Ganancia €' in sort_keys
         assert 'Ganancia %' in sort_keys
         assert 'Nombre' in sort_keys
+
+
+class TestGetPortfolioMetrics:
+    """Tests para get_portfolio_metrics() - métricas avanzadas."""
+
+    def test_returns_correct_structure(self, portfolio_service):
+        """Verifica que devuelve la estructura correcta."""
+        metrics = portfolio_service.get_portfolio_metrics()
+
+        # Verificar estructura principal
+        assert 'risk' in metrics
+        assert 'performance' in metrics
+        assert 'meta' in metrics
+
+        # Verificar claves de riesgo
+        assert 'volatility' in metrics['risk']
+        assert 'var_95' in metrics['risk']
+        assert 'max_drawdown' in metrics['risk']
+        assert 'beta' in metrics['risk']
+
+        # Verificar claves de rendimiento
+        assert 'total_return' in metrics['performance']
+        assert 'cagr' in metrics['performance']
+        assert 'sharpe_ratio' in metrics['performance']
+        assert 'sortino_ratio' in metrics['performance']
+        assert 'alpha' in metrics['performance']
+
+        # Verificar metadatos
+        assert 'start_date' in metrics['meta']
+        assert 'end_date' in metrics['meta']
+        assert 'benchmark' in metrics['meta']
+        assert 'trading_days' in metrics['meta']
+        assert 'has_benchmark_data' in metrics['meta']
+
+    def test_returns_floats(self, portfolio_service):
+        """Verifica que todas las métricas son floats."""
+        metrics = portfolio_service.get_portfolio_metrics()
+
+        for key, value in metrics['risk'].items():
+            assert isinstance(value, (int, float)), f"risk.{key} no es float"
+
+        for key, value in metrics['performance'].items():
+            assert isinstance(value, (int, float)), f"performance.{key} no es float"
+
+    def test_accepts_custom_parameters(self, portfolio_service):
+        """Verifica que acepta parámetros personalizados."""
+        metrics = portfolio_service.get_portfolio_metrics(
+            start_date='2024-01-01',
+            end_date='2024-12-31',
+            benchmark_name='IBEX35',
+            risk_free_rate=0.03
+        )
+
+        assert metrics['meta']['benchmark'] == 'IBEX35'
+
+    def test_default_benchmark_is_sp500(self, portfolio_service):
+        """Verifica que el benchmark por defecto es SP500."""
+        metrics = portfolio_service.get_portfolio_metrics()
+        assert metrics['meta']['benchmark'] == 'SP500'
+
+    def test_empty_portfolio_returns_defaults(self, portfolio_service):
+        """Sin datos, devuelve valores por defecto."""
+        metrics = portfolio_service.get_portfolio_metrics()
+
+        # Con portfolio vacío, métricas son 0 o valores por defecto
+        assert metrics['risk']['beta'] == 1.0  # Default neutral
+        assert metrics['meta']['trading_days'] >= 0
+
+
+class TestGetAvailableBenchmarks:
+    """Tests para get_available_benchmarks()."""
+
+    def test_returns_list(self, portfolio_service):
+        """Verifica que devuelve una lista."""
+        benchmarks = portfolio_service.get_available_benchmarks()
+        assert isinstance(benchmarks, list)
+
+    def test_each_benchmark_has_required_fields(self, portfolio_service):
+        """Cada benchmark tiene los campos esperados si hay datos."""
+        benchmarks = portfolio_service.get_available_benchmarks()
+
+        for benchmark in benchmarks:
+            assert 'name' in benchmark
+            assert 'records' in benchmark

@@ -32,14 +32,38 @@ try:
     from src.tax_calculator import TaxCalculator
     from src.dividends import DividendManager
     from src.market_data import MarketDataManager
+    from src.benchmarks import BenchmarkComparator
     from src.logger import get_logger
+    from src.core.analytics import (
+        calculate_volatility,
+        calculate_var,
+        calculate_beta,
+        calculate_max_drawdown,
+        calculate_sharpe_ratio,
+        calculate_sortino_ratio,
+        calculate_alpha,
+        calculate_cagr,
+        calculate_total_return,
+    )
 except ImportError:
     from services.base import BaseService, ServiceResult
     from portfolio import Portfolio
     from tax_calculator import TaxCalculator
     from dividends import DividendManager
     from market_data import MarketDataManager
+    from benchmarks import BenchmarkComparator
     from logger import get_logger
+    from core.analytics import (
+        calculate_volatility,
+        calculate_var,
+        calculate_beta,
+        calculate_max_drawdown,
+        calculate_sharpe_ratio,
+        calculate_sortino_ratio,
+        calculate_alpha,
+        calculate_cagr,
+        calculate_total_return,
+    )
 
 logger = get_logger(__name__)
 
@@ -90,6 +114,7 @@ class PortfolioService(BaseService):
         self.market_data = MarketDataManager(db_path)
         self._tax_calculator = None  # Lazy loading
         self._dividend_manager = None  # Lazy loading
+        self._benchmark_comparator = None  # Lazy loading
         logger.info("PortfolioService inicializado")
 
     def close(self):
@@ -102,6 +127,8 @@ class PortfolioService(BaseService):
             self._tax_calculator.close()
         if self._dividend_manager:
             self._dividend_manager.close()
+        if self._benchmark_comparator:
+            self._benchmark_comparator.close()
         super().close()
         logger.debug("PortfolioService cerrado")
 
@@ -444,6 +471,206 @@ class PortfolioService(BaseService):
                 'total_withholding': 0.0,
                 'year': year
             }
+
+    # =========================================================================
+    # MÉTRICAS AVANZADAS DE ANALYTICS
+    # =========================================================================
+
+    def get_portfolio_metrics(
+        self,
+        start_date: str = None,
+        end_date: str = None,
+        benchmark_name: str = 'SP500',
+        risk_free_rate: float = 0.02
+    ) -> Dict[str, Any]:
+        """
+        Calcula métricas avanzadas de riesgo y rendimiento del portfolio.
+
+        Usa los precios históricos de mercado para calcular retornos reales,
+        y compara contra un benchmark para métricas como Beta y Alpha.
+
+        Args:
+            start_date: Fecha inicio (YYYY-MM-DD). Default: 1 año atrás.
+            end_date: Fecha fin (YYYY-MM-DD). Default: hoy.
+            benchmark_name: Nombre del benchmark ('SP500', 'IBEX35', 'MSCIWORLD').
+            risk_free_rate: Tasa libre de riesgo anual (default 2%).
+
+        Returns:
+            Dict con estructura:
+            {
+                'risk': {
+                    'volatility': float,      # Volatilidad anualizada
+                    'var_95': float,          # VaR al 95%
+                    'max_drawdown': float,    # Máxima caída
+                    'beta': float,            # Beta vs benchmark
+                },
+                'performance': {
+                    'total_return': float,    # Retorno total acumulado
+                    'cagr': float,            # Tasa crecimiento anual compuesto
+                    'sharpe_ratio': float,    # Ratio de Sharpe
+                    'sortino_ratio': float,   # Ratio de Sortino
+                    'alpha': float,           # Alpha de Jensen
+                },
+                'meta': {
+                    'start_date': str,
+                    'end_date': str,
+                    'benchmark': str,
+                    'trading_days': int,
+                    'has_benchmark_data': bool,
+                }
+            }
+        """
+        from datetime import timedelta
+
+        # Establecer fechas por defecto
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        if start_date is None:
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+
+        logger.debug(f"Calculando métricas: {start_date} a {end_date}, benchmark={benchmark_name}")
+
+        # Inicializar resultado con valores por defecto
+        result = {
+            'risk': {
+                'volatility': 0.0,
+                'var_95': 0.0,
+                'max_drawdown': 0.0,
+                'beta': 1.0,  # Neutral por defecto
+            },
+            'performance': {
+                'total_return': 0.0,
+                'cagr': 0.0,
+                'sharpe_ratio': 0.0,
+                'sortino_ratio': 0.0,
+                'alpha': 0.0,
+            },
+            'meta': {
+                'start_date': start_date,
+                'end_date': end_date,
+                'benchmark': benchmark_name,
+                'trading_days': 0,
+                'has_benchmark_data': False,
+            }
+        }
+
+        try:
+            # 1. Obtener serie de valores del portfolio
+            portfolio_series = self.market_data.get_portfolio_market_value_series(
+                start_date, end_date
+            )
+
+            if portfolio_series.empty or 'market_value' not in portfolio_series.columns:
+                logger.warning("No hay datos de valor de mercado del portfolio")
+                return result
+
+            # Convertir a Series con índice de fechas
+            portfolio_values = portfolio_series.set_index('date')['market_value']
+            portfolio_values = portfolio_values.dropna()
+
+            if len(portfolio_values) < 2:
+                logger.warning("Datos insuficientes para calcular retornos")
+                return result
+
+            # 2. Calcular retornos diarios del portfolio
+            portfolio_returns = portfolio_values.pct_change().dropna()
+
+            # Filtrar retornos extremos (errores de datos)
+            portfolio_returns = portfolio_returns[
+                (portfolio_returns > -0.5) & (portfolio_returns < 0.5)
+            ]
+
+            if len(portfolio_returns) < 10:
+                logger.warning("Menos de 10 retornos válidos")
+                return result
+
+            result['meta']['trading_days'] = len(portfolio_returns)
+
+            # 3. Calcular métricas de riesgo (no requieren benchmark)
+            result['risk']['volatility'] = float(calculate_volatility(
+                portfolio_returns, annualize=True, periods_per_year=252
+            ))
+
+            result['risk']['var_95'] = float(calculate_var(
+                portfolio_returns, confidence_level=0.95, method='historical'
+            ))
+
+            result['risk']['max_drawdown'] = float(calculate_max_drawdown(
+                portfolio_values
+            ))
+
+            # 4. Calcular métricas de rendimiento básicas
+            result['performance']['total_return'] = float(calculate_total_return(
+                portfolio_values
+            ))
+
+            result['performance']['cagr'] = float(calculate_cagr(
+                portfolio_values
+            ))
+
+            result['performance']['sharpe_ratio'] = float(calculate_sharpe_ratio(
+                portfolio_returns, risk_free_rate=risk_free_rate
+            ))
+
+            result['performance']['sortino_ratio'] = float(calculate_sortino_ratio(
+                portfolio_returns, risk_free_rate=risk_free_rate
+            ))
+
+            # 5. Obtener benchmark para Beta y Alpha
+            if self._benchmark_comparator is None:
+                self._benchmark_comparator = BenchmarkComparator()
+
+            benchmark_series = self._benchmark_comparator.get_benchmark_series(
+                benchmark_name, start_date, end_date
+            )
+
+            if not benchmark_series.empty and len(benchmark_series) > 10:
+                result['meta']['has_benchmark_data'] = True
+
+                # Alinear fechas entre portfolio y benchmark
+                common_dates = portfolio_values.index.intersection(benchmark_series.index)
+
+                if len(common_dates) > 10:
+                    aligned_portfolio = portfolio_values.loc[common_dates]
+                    aligned_benchmark = benchmark_series.loc[common_dates]
+
+                    portfolio_ret = aligned_portfolio.pct_change().dropna()
+                    benchmark_ret = aligned_benchmark.pct_change().dropna()
+
+                    # Alinear retornos
+                    common_ret_dates = portfolio_ret.index.intersection(benchmark_ret.index)
+                    portfolio_ret = portfolio_ret.loc[common_ret_dates]
+                    benchmark_ret = benchmark_ret.loc[common_ret_dates]
+
+                    if len(portfolio_ret) > 10:
+                        result['risk']['beta'] = float(calculate_beta(
+                            portfolio_ret, benchmark_ret
+                        ))
+
+                        result['performance']['alpha'] = float(calculate_alpha(
+                            portfolio_ret, benchmark_ret, risk_free_rate=risk_free_rate
+                        ))
+            else:
+                logger.info(f"Sin datos de benchmark {benchmark_name}, usando Beta=1.0, Alpha=0.0")
+
+        except Exception as e:
+            logger.error(f"Error calculando métricas de portfolio: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+
+        return result
+
+    def get_available_benchmarks(self) -> List[Dict]:
+        """
+        Lista los benchmarks disponibles para comparación.
+
+        Returns:
+            Lista de dicts con nombre, fecha_inicio, fecha_fin, registros
+        """
+        if self._benchmark_comparator is None:
+            self._benchmark_comparator = BenchmarkComparator()
+
+        return self._benchmark_comparator.get_available_benchmarks()
 
     # =========================================================================
     # MÉTODOS DE CONVENIENCIA

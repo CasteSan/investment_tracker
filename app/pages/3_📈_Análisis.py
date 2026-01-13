@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.portfolio import Portfolio
 from src.database import Database
+from src.services.portfolio_service import PortfolioService
 
 # Importar componentes
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -125,9 +126,170 @@ try:
     with col4:
         losers_loss = losers['unrealized_gain'].sum() if not losers.empty else 0
         st.metric("Total Pérdidas", f"{losers_loss:,.2f}€")
-    
+
     st.divider()
-    
+
+    # =========================================================================
+    # MÉTRICAS AVANZADAS DE RIESGO Y RENDIMIENTO
+    # =========================================================================
+    st.markdown("### 📈 Métricas Avanzadas de Riesgo y Rendimiento")
+
+    # Selector de período y benchmark en el sidebar
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Métricas Avanzadas")
+
+        # Período de análisis
+        periodo_opciones = {
+            "1 mes": 30,
+            "3 meses": 90,
+            "6 meses": 180,
+            "1 año": 365,
+            "2 años": 730,
+            "Todo": None
+        }
+        periodo_seleccionado = st.selectbox(
+            "Período de análisis",
+            list(periodo_opciones.keys()),
+            index=3  # Default: 1 año
+        )
+
+        # Benchmark
+        benchmark_opciones = ["SP500", "IBEX35", "MSCIWORLD", "EUROSTOXX50"]
+        benchmark_seleccionado = st.selectbox(
+            "Benchmark",
+            benchmark_opciones,
+            index=0
+        )
+
+        # Tasa libre de riesgo
+        risk_free = st.slider(
+            "Tasa libre de riesgo (%)",
+            min_value=0.0,
+            max_value=5.0,
+            value=2.0,
+            step=0.25
+        ) / 100
+
+    # Calcular fechas
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    dias = periodo_opciones[periodo_seleccionado]
+    if dias:
+        start_date = (datetime.now() - timedelta(days=dias)).strftime('%Y-%m-%d')
+    else:
+        start_date = None  # Todo el histórico
+
+    # Obtener métricas usando el servicio
+    with PortfolioService() as service:
+        metrics = service.get_portfolio_metrics(
+            start_date=start_date,
+            end_date=end_date,
+            benchmark_name=benchmark_seleccionado,
+            risk_free_rate=risk_free
+        )
+
+    # Mostrar métricas en dos filas
+    # Fila 1: Métricas de Rendimiento
+    st.markdown("#### Rendimiento")
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        total_ret = metrics['performance']['total_return']
+        st.metric(
+            "Retorno Total",
+            f"{total_ret:+.2%}",
+            help="Rentabilidad acumulada en el período"
+        )
+
+    with col2:
+        cagr = metrics['performance']['cagr']
+        st.metric(
+            "CAGR",
+            f"{cagr:+.2%}",
+            help="Tasa de crecimiento anual compuesto"
+        )
+
+    with col3:
+        sharpe = metrics['performance']['sharpe_ratio']
+        sharpe_color = "normal" if sharpe > 0 else "inverse"
+        st.metric(
+            "Sharpe Ratio",
+            f"{sharpe:.2f}",
+            help="Retorno ajustado por riesgo. >1 es bueno, >2 es excelente"
+        )
+
+    with col4:
+        sortino = metrics['performance']['sortino_ratio']
+        st.metric(
+            "Sortino Ratio",
+            f"{sortino:.2f}",
+            help="Similar a Sharpe pero solo considera volatilidad negativa"
+        )
+
+    with col5:
+        alpha = metrics['performance']['alpha']
+        alpha_delta = f"vs {benchmark_seleccionado}"
+        st.metric(
+            "Alpha",
+            f"{alpha:+.2%}",
+            delta=alpha_delta if metrics['meta']['has_benchmark_data'] else "Sin benchmark",
+            help="Exceso de retorno sobre el benchmark ajustado por riesgo"
+        )
+
+    # Fila 2: Métricas de Riesgo
+    st.markdown("#### Riesgo")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        vol = metrics['risk']['volatility']
+        st.metric(
+            "Volatilidad",
+            f"{vol:.2%}",
+            help="Desviación estándar anualizada de los retornos"
+        )
+
+    with col2:
+        var = metrics['risk']['var_95']
+        st.metric(
+            "VaR 95%",
+            f"{var:.2%}",
+            help="Pérdida máxima esperada en un día con 95% de confianza"
+        )
+
+    with col3:
+        max_dd = metrics['risk']['max_drawdown']
+        st.metric(
+            "Max Drawdown",
+            f"{max_dd:.2%}",
+            help="Máxima caída desde un pico anterior"
+        )
+
+    with col4:
+        beta = metrics['risk']['beta']
+        beta_interpretation = "Más volátil que mercado" if beta > 1 else "Menos volátil que mercado" if beta < 1 else "Igual que mercado"
+        st.metric(
+            "Beta",
+            f"{beta:.2f}",
+            delta=beta_interpretation if metrics['meta']['has_benchmark_data'] else "Sin benchmark",
+            help="Sensibilidad al mercado. Beta=1 significa igual volatilidad que el benchmark"
+        )
+
+    # Info sobre el período analizado
+    trading_days = metrics['meta']['trading_days']
+    has_benchmark = metrics['meta']['has_benchmark_data']
+
+    if trading_days > 0:
+        info_text = f"Análisis basado en {trading_days} días de trading"
+        if has_benchmark:
+            info_text += f" | Benchmark: {benchmark_seleccionado}"
+        else:
+            info_text += f" | Sin datos de {benchmark_seleccionado} (Beta=1.0, Alpha=0.0)"
+        st.caption(info_text)
+    else:
+        st.warning("No hay suficientes datos históricos para calcular métricas avanzadas. Descarga precios en Configuración.")
+
+    st.divider()
+
     # =========================================================================
     # GRÁFICO DE RENTABILIDAD POR ACTIVO
     # =========================================================================

@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Este documento guía a Claude al trabajar con investment_tracker.
+Guia para Claude al trabajar con investment_tracker.
 
-## Stack tecnológico
+## Stack tecnologico
 
 Python 3.10+ | SQLite + SQLAlchemy | Pandas/NumPy | Streamlit + Plotly
 
@@ -12,103 +12,166 @@ Python 3.10+ | SQLite + SQLAlchemy | Pandas/NumPy | Streamlit + Plotly
 # Ejecutar app
 streamlit run app/main.py
 
-# Tests individuales
+# Tests con pytest (RECOMENDADO)
+pytest                                    # Todos los tests
+pytest tests/unit/ -v                     # Solo unitarios
+pytest tests/unit/test_portfolio_service.py -v  # Archivo especifico
+
+# Tests legacy (raiz)
 python test_portfolio.py
-python test_database.py
-python test_tax_calculator.py
-python test_dividends.py
-python test_benchmarks.py
 
 # Instalar dependencias
 pip install -r requirements.txt
 ```
 
-## Arquitectura de 3 capas
+## Arquitectura (Refactorizada)
 
-1. **Presentación** (`app/`) → Streamlit, no lógica de negocio
-2. **Negocio** (`src/`) → Portfolio, TaxCalculator, DividendManager, BenchmarkComparator
-3. **Datos** (`src/database.py`) → Único punto de acceso a SQLite
+```
+                    ┌─────────────────────────────┐
+                    │      PRESENTACION (app/)     │
+                    │   Streamlit - Solo UI        │
+                    └──────────────┬──────────────┘
+                                   │
+                    ┌──────────────▼──────────────┐
+                    │    SERVICIOS (src/services/) │
+                    │  PortfolioService (puente)   │
+                    └──────────────┬──────────────┘
+                                   │
+        ┌──────────────────────────┼──────────────────────────┐
+        │                          │                          │
+┌───────▼───────┐    ┌─────────────▼─────────────┐   ┌────────▼────────┐
+│ CORE (analytics)│    │   NEGOCIO (src/*.py)      │   │  DATOS (src/data)│
+│ Metricas puras  │    │ Portfolio, Tax, Dividends │   │    Database      │
+└─────────────────┘    └───────────────────────────┘   └──────────────────┘
+```
 
 ## Estructura de carpetas
 
 ```
-src/           # Módulos core (database.py, portfolio.py, tax_calculator.py, etc.)
-app/           # UI Streamlit (main.py, pages/, components/)
-data/          # database.db, exports/, benchmark_data/
-tests/         # Tests unitarios
-test_*.py      # Tests de integración (raíz)
-config.py      # Constantes globales (rutas, TAX_METHOD, BENCHMARKS, etc.)
+src/
+├── services/           # [NUEVO] Capa de servicios
+│   ├── base.py         # BaseService (clase abstracta)
+│   └── portfolio_service.py  # Orquestador para Dashboard
+├── core/               # [NUEVO] Logica pura
+│   └── analytics/      # Metricas: Sharpe, Beta, VaR, etc.
+├── data/               # [NUEVO] Capa de datos
+│   └── database.py     # Database, modelos SQLAlchemy
+├── database.py         # [COMPATIBILIDAD] Re-exporta desde data/
+├── portfolio.py        # Calculos de cartera
+├── tax_calculator.py   # Calculos fiscales
+├── dividends.py        # Gestion dividendos
+└── exceptions.py       # [NUEVO] Excepciones de dominio
+
+app/                    # UI Streamlit
+├── pages/              # Paginas (1_Dashboard.py, etc.)
+└── components/         # Componentes reutilizables
+
+tests/                  # [NUEVO] Tests pytest
+├── conftest.py         # Fixtures compartidas
+├── unit/               # Tests unitarios
+└── integration/        # Tests de integracion
+
+api/                    # [NUEVO] FastAPI (futuro)
 ```
 
-## Convenciones del proyecto
+## Patron de uso: PortfolioService
+
+```python
+# ANTES (acoplado)
+from src.portfolio import Portfolio
+from src.database import Database
+from src.tax_calculator import TaxCalculator
+
+portfolio = Portfolio()
+db = Database()
+tax = TaxCalculator()
+# ... logica dispersa en UI ...
+
+# AHORA (desacoplado)
+from src.services.portfolio_service import PortfolioService
+
+service = PortfolioService()
+data = service.get_dashboard_data(fiscal_year=2024)
+
+# UI solo renderiza
+st.metric("Valor Total", f"{data['metrics']['total_value']:,.2f}EUR")
+service.close()
+```
+
+## Metricas Analytics (src/core/analytics/)
+
+```python
+from src.core.analytics import (
+    calculate_volatility,    # Riesgo
+    calculate_sharpe_ratio,  # Rendimiento ajustado
+    calculate_beta,          # Sensibilidad mercado
+    calculate_max_drawdown   # Maxima caida
+)
+
+# Uso: esperan Series de RETORNOS (no precios)
+returns = prices.pct_change().dropna()
+sharpe = calculate_sharpe_ratio(returns, risk_free_rate=0.02)
+```
+
+## Metricas Avanzadas via Servicio
+
+```python
+from src.services import PortfolioService
+
+with PortfolioService() as service:
+    metrics = service.get_portfolio_metrics(
+        start_date='2024-01-01',
+        benchmark_name='SP500',
+        risk_free_rate=0.02
+    )
+
+    # Riesgo
+    print(f"Volatilidad: {metrics['risk']['volatility']:.2%}")
+    print(f"Beta: {metrics['risk']['beta']:.2f}")
+    print(f"Max Drawdown: {metrics['risk']['max_drawdown']:.2%}")
+
+    # Rendimiento
+    print(f"Sharpe: {metrics['performance']['sharpe_ratio']:.2f}")
+    print(f"Alpha: {metrics['performance']['alpha']:.2%}")
+```
+
+## Convenciones
 
 ### Imports
 ```python
-# Siempre usar try/except para compatibilidad
-try:
-    from src.database import Database
-    from src.logger import get_logger
-except ImportError:
-    from database import Database
-    from logger import get_logger
+# Preferir imports desde servicios
+from src.services import PortfolioService
+
+# Base de datos (compatibilidad mantenida)
+from src.database import Database  # Funciona igual que antes
+from src.data import Database      # Nueva ubicacion
 ```
 
-### Base de datos
-- Usar `Database()` como único punto de acceso
-- Siempre cerrar conexión con `db.close()`
-- Modelos en `database.py`: `Transaction`, `Dividend`, `BenchmarkData`, `AssetPrice`
+### Servicios
+- Heredan de `BaseService`
+- Soportan context manager: `with PortfolioService() as s:`
+- Siempre cerrar con `.close()`
 
-### Módulos de negocio
-- Cada módulo tiene un `close()` que llama a `self.db.close()`
-- Soportan inyección de `db_path` para testing
-- Retornan DataFrames o diccionarios estructurados
-
-### UI Streamlit
-- Emojis en nombres de archivo: `1_📊_Dashboard.py`
-- Componentes reutilizables en `app/components/`
-- Configuración de página siempre al inicio
+### Tests
+- Usar pytest, no tests manuales
+- Fixtures en `tests/conftest.py`
+- BD temporal automatica con `temp_db_path` fixture
 
 ## Reglas fiscales (España)
 
-- Método por defecto: **FIFO** (First In First Out)
-- Retención dividendos: 19% (`config.DEFAULT_WITHHOLDING_TAX`)
-- Divisas soportadas: EUR, USD, GBX, CAD
-- Campo `realized_gain_eur` almacena B/P en EUR ya convertido
+- Metodo: **FIFO** (First In First Out)
+- Retencion dividendos: 19%
+- Divisas: EUR, USD, GBX, CAD
+- Campo `realized_gain_eur` para B/P en EUR
 
-## Patrones de código
+## Errores a evitar
 
-### Crear tests
-```python
-def run_tests():
-    """Ejecuta todos los tests"""
-    tests_passed = 0
-    tests_failed = 0
-    # ... test blocks con try/except
-    print(f"✅ Tests pasados: {tests_passed}")
-```
+1. **Logica en UI** → Usar PortfolioService
+2. **No cerrar conexiones** → Usar context managers
+3. **Tests manuales** → Usar pytest
+4. **Imports rotos** → src/database.py es shim de compatibilidad
 
-### Documentación de funciones
-```python
-def get_current_positions(self, asset_type: str = None) -> pd.DataFrame:
-    """
-    Calcula las posiciones actuales de la cartera.
-    
-    Args:
-        asset_type: Filtrar por tipo ('accion', 'fondo', 'etf')
-    
-    Returns:
-        DataFrame con ticker, quantity, avg_price, market_value...
-    """
-```
-
-## Errores comunes a evitar
-
-1. **No cerrar conexiones DB** → Memory leaks, DB locked
-2. **Lógica de negocio en UI** → Todo cálculo en `src/`
-3. **Ignorar divisas** → Usar `realized_gain_eur` para B/P reales
-4. **SQL directo** → Siempre usar clase `Database`
-
-## Archivos ignorados (no versionar)
+## Archivos ignorados
 
 - `data/database.db`, `data/*.db`
 - `data/exports/`, `data/benchmark_data/`

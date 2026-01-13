@@ -21,8 +21,11 @@ Uso:
     data = service.get_dashboard_data()
 """
 
-from src.services.base import BaseService
+from src.services.base import BaseService, ServiceResult
+from src.services.portfolio_service import PortfolioService
 
 __all__ = [
     'BaseService',
+    'ServiceResult',
+    'PortfolioService',
 ]

@@ -1,6 +1,7 @@
 # Entorno virtual
 venv/
 .venv/
+env/
 
 # Python
 __pycache__/
@@ -9,15 +10,40 @@ __pycache__/
 *.pyd
 .pytest_cache/
 .ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
 
-# VSCode
+# VSCode / IDE
 .vscode/
+.idea/
+*.swp
+*.swo
 
-# Datos locales
+# Datos locales (no trackear datos personales)
 data/database.db
 data/*.db
 data/exports/
 data/benchmark_data/
+data/*.csv
+!data/ejemplo_transacciones.csv
 
 # Logs
+logs/
 *.log
+
+# Claude Code settings
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+*.tmp
+*.bak
+*.orig
+
+# Coverage
+.coverage
+htmlcov/

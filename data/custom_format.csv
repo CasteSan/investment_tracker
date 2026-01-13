@@ -1,4 +1,0 @@
-Fecha,Operación,Ticker,Nombre,Cantidad,Precio,Comisión,Notas
-2024-04-15,buy,SAN,Banco Santander,200,4.50,12.00,Compra nueva
-2024-05-10,buy,IBE,Iberdrola,150,12.30,15.50,Energía
-2024-06-01,dividend,SAN,Banco Santander,,,0.12,Dividendo trimestral

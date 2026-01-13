@@ -482,7 +482,7 @@ def plot_top_bottom_performers(df: pd.DataFrame,
 
 def plot_portfolio_treemap(df: pd.DataFrame,
                            size_col: str = 'weight',
-                           color_col: str = 'color_value',
+                           color_col: str = 'daily_change_pct',
                            label_col: str = 'display_name',
                            hover_name_col: str = 'name',
                            title: str = "Mapa de Calor de la Cartera") -> go.Figure:
@@ -490,12 +490,18 @@ def plot_portfolio_treemap(df: pd.DataFrame,
     Gráfico de mapa de calor (treemap) para visualizar la cartera.
 
     El tamaño de cada celda representa el peso en la cartera,
-    y el color representa el rendimiento (verde=positivo, rojo=negativo).
+    y el color representa la variación intradía (verde=positivo, rojo=negativo).
+
+    Características:
+    - Escala de color dinámica basada en percentil 95 (evita que outliers
+      distorsionen la visualización)
+    - Texto centrado con nombre del activo y variación formateada
+    - Fuente grande y legible
 
     Args:
         df: DataFrame con datos de la cartera
         size_col: Columna para el tamaño de las celdas (peso %)
-        color_col: Columna para el color (rendimiento %)
+        color_col: Columna para el color (variación intradía %)
         label_col: Columna para las etiquetas (nombres truncados)
         hover_name_col: Columna para el nombre completo en tooltip
         title: Título del gráfico
@@ -504,6 +510,7 @@ def plot_portfolio_treemap(df: pd.DataFrame,
         Figura de Plotly
     """
     import plotly.express as px
+    import numpy as np
 
     if df.empty:
         # Devolver figura vacía con mensaje
@@ -523,16 +530,21 @@ def plot_portfolio_treemap(df: pd.DataFrame,
     # Asegurar que weight sea positivo para el treemap
     plot_df[size_col] = plot_df[size_col].abs()
 
-    # Crear texto personalizado para hover
-    plot_df['hover_text'] = plot_df.apply(
-        lambda r: (
-            f"<b>{r[hover_name_col]}</b><br>"
-            f"Valor: {r['market_value']:,.2f}€<br>"
-            f"Peso: {r['weight']:.1f}%<br>"
-            f"Rendimiento: {r[color_col]:+.2f}%"
-        ),
+    # Crear texto formateado para mostrar en cada celda: nombre + variación
+    plot_df['cell_text'] = plot_df.apply(
+        lambda r: f"<b>{r[label_col]}</b><br>{r[color_col]:+.2f}%",
         axis=1
     )
+
+    # Calcular escala de color dinámica usando percentil 95
+    # Esto evita que valores extremos distorsionen la visualización
+    abs_values = np.abs(plot_df[color_col].values)
+    if len(abs_values) > 0 and np.max(abs_values) > 0:
+        max_val = np.percentile(abs_values, 95)
+        # Asegurar un mínimo para evitar escala demasiado pequeña
+        max_val = max(max_val, 1.0)
+    else:
+        max_val = 5.0  # Default si no hay variación
 
     # Crear treemap con plotly express
     fig = px.treemap(
@@ -542,28 +554,33 @@ def plot_portfolio_treemap(df: pd.DataFrame,
         color=color_col,
         color_continuous_scale=[
             [0.0, '#d62728'],    # Rojo fuerte (muy negativo)
-            [0.35, '#ff6b6b'],   # Rojo claro
-            [0.45, '#f0f0f0'],   # Gris claro (cercano a 0)
-            [0.55, '#f0f0f0'],   # Gris claro (cercano a 0)
-            [0.65, '#69db7c'],   # Verde claro
+            [0.25, '#ff6b6b'],   # Rojo claro
+            [0.45, '#f5f5f5'],   # Gris muy claro (cercano a 0)
+            [0.55, '#f5f5f5'],   # Gris muy claro (cercano a 0)
+            [0.75, '#69db7c'],   # Verde claro
             [1.0, '#2ca02c'],    # Verde fuerte (muy positivo)
         ],
-        color_continuous_midpoint=0,
-        custom_data=[hover_name_col, 'market_value', 'weight', color_col],
+        range_color=[-max_val, max_val],
+        custom_data=[hover_name_col, 'market_value', 'weight', color_col, 'total_return'],
         title=title
     )
 
-    # Personalizar hover template
+    # Personalizar texto y hover
     fig.update_traces(
+        # Texto centrado con nombre y variación
+        text=plot_df['cell_text'],
+        texttemplate='%{text}',
+        textposition='middle center',
+        textfont=dict(size=14, family="Arial, sans-serif"),
+        # Hover con información completa
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
             "Valor: %{customdata[1]:,.2f}€<br>"
             "Peso: %{customdata[2]:.1f}%<br>"
-            "Rendimiento: %{customdata[3]:+.2f}%"
+            "Var. Intradía: %{customdata[3]:+.2f}%<br>"
+            "Rent. Total: %{customdata[4]:+.2f}%"
             "<extra></extra>"
         ),
-        textinfo='label+percent entry',
-        textfont=dict(size=12)
     )
 
     # Configurar layout
@@ -572,9 +589,10 @@ def plot_portfolio_treemap(df: pd.DataFrame,
         template='plotly_white',
         margin=dict(t=50, l=10, r=10, b=10),
         coloraxis_colorbar=dict(
-            title="Rendimiento %",
+            title="Var. %",
             tickformat="+.1f",
-            ticksuffix="%"
+            ticksuffix="%",
+            len=0.8
         )
     )
 

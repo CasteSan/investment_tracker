@@ -369,7 +369,7 @@ class TestGetHeatmapData:
         if not result.empty:
             required_cols = [
                 'ticker', 'name', 'display_name', 'market_value', 'weight',
-                'daily_return', 'total_return', 'color_value', 'asset_type'
+                'current_price', 'daily_change_pct', 'total_return', 'asset_type'
             ]
             for col in required_cols:
                 assert col in result.columns, f"Falta columna: {col}"
@@ -414,13 +414,13 @@ class TestGetHeatmapData:
             for display_name in result['display_name']:
                 assert len(display_name) <= 18  # 15 + "..." = 18 max
 
-    def test_color_value_is_numeric(self, portfolio_service_with_data):
-        """color_value debe ser numérico (no NaN)."""
+    def test_daily_change_is_numeric(self, portfolio_service_with_data):
+        """daily_change_pct debe ser numérico (no NaN)."""
         result = portfolio_service_with_data.get_heatmap_data()
 
         if not result.empty:
-            assert result['color_value'].notna().all()
-            assert result['color_value'].dtype in ['float64', 'int64', 'float32', 'int32']
+            assert result['daily_change_pct'].notna().all()
+            assert result['daily_change_pct'].dtype in ['float64', 'int64', 'float32', 'int32']
 
     def test_sorted_by_weight_descending(self, portfolio_service_with_data):
         """Resultado debe estar ordenado por peso descendente."""

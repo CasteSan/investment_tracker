@@ -180,7 +180,7 @@ try:
         fig = plot_portfolio_treemap(
             heatmap_df,
             size_col='weight',
-            color_col='color_value',
+            color_col='daily_change_pct',
             label_col='display_name',
             hover_name_col='name',
             title=""
@@ -190,7 +190,7 @@ try:
         # Leyenda informativa
         st.caption(
             "📊 **Tamaño:** Peso en cartera | "
-            "🎨 **Color:** Rendimiento diario (o total si no hay datos recientes)"
+            "🎨 **Color:** Variación intradía (vs cierre anterior)"
         )
     else:
         st.info(f"No hay activos de tipo '{heatmap_filter_label}' en la cartera")

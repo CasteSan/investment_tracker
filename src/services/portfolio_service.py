@@ -772,8 +772,11 @@ class PortfolioService(BaseService):
         """
         Obtiene datos para el mapa de calor (treemap) del dashboard.
 
-        Calcula el rendimiento diario de cada activo para determinar el color,
+        Calcula la variación intradía de cada activo para determinar el color,
         y usa el peso en cartera para el tamaño de cada celda.
+
+        La variación intradía se calcula como:
+        daily_change_pct = (current_price - previous_close) / previous_close * 100
 
         Args:
             category_filter: Filtro de categoría:
@@ -785,9 +788,9 @@ class PortfolioService(BaseService):
         Returns:
             DataFrame con columnas:
                 - ticker, name, display_name
-                - market_value, weight
-                - daily_return (% cambio vs ayer)
-                - total_return (% ganancia total, usado como fallback)
+                - market_value, weight, current_price
+                - daily_change_pct (% variación intradía)
+                - total_return (% ganancia total acumulada)
                 - asset_type
         """
         from datetime import timedelta
@@ -818,55 +821,61 @@ class PortfolioService(BaseService):
         total_value = positions['market_value'].sum()
         positions['weight'] = (positions['market_value'] / total_value * 100)
 
-        # Calcular rendimiento diario para cada ticker
+        # Calcular variación intradía para cada ticker
         today = datetime.now().date()
         yesterday = today - timedelta(days=1)
         # Si ayer fue fin de semana, buscar el viernes
         while yesterday.weekday() >= 5:  # 5=Sábado, 6=Domingo
             yesterday -= timedelta(days=1)
 
-        daily_returns = []
+        daily_changes = []
+        current_prices_list = []
 
         for _, row in positions.iterrows():
             ticker = row['ticker']
-            daily_return = None
+            daily_change = None
+            current_price = None
 
             try:
-                # Obtener precios de los últimos días
+                # Obtener el precio actual de mercado
+                if ticker in current_prices:
+                    current_price = current_prices[ticker]
+                else:
+                    # Calcular desde market_value y quantity
+                    if row['quantity'] > 0:
+                        current_price = row['market_value'] / row['quantity']
+
+                # Obtener el cierre del día anterior
                 prices = self.market_data.get_ticker_prices(
                     ticker,
                     start_date=(yesterday - timedelta(days=7)).strftime('%Y-%m-%d'),
-                    end_date=today.strftime('%Y-%m-%d')
+                    end_date=yesterday.strftime('%Y-%m-%d')
                 )
 
-                if not prices.empty and len(prices) >= 2:
-                    # Ordenar por fecha y tomar los dos últimos
+                if not prices.empty and current_price is not None:
+                    # Ordenar por fecha y tomar el último (cierre de ayer)
                     prices = prices.sort_values('date')
-                    latest_price = prices.iloc[-1]['adj_close']
-                    previous_price = prices.iloc[-2]['adj_close']
+                    previous_close = prices.iloc[-1]['adj_close']
 
-                    if previous_price > 0:
-                        daily_return = ((latest_price - previous_price) / previous_price) * 100
+                    if previous_close > 0:
+                        # Variación intradía: (precio actual - cierre ayer) / cierre ayer
+                        daily_change = ((current_price - previous_close) / previous_close) * 100
 
             except Exception as e:
-                logger.debug(f"No se pudo calcular rendimiento diario para {ticker}: {e}")
+                logger.debug(f"No se pudo calcular variación intradía para {ticker}: {e}")
 
-            daily_returns.append(daily_return)
+            daily_changes.append(daily_change)
+            current_prices_list.append(current_price)
 
-        positions['daily_return'] = daily_returns
+        positions['daily_change_pct'] = daily_changes
+        positions['current_price'] = current_prices_list
 
-        # Usar total_return como fallback cuando no hay daily_return
+        # Guardar rentabilidad total acumulada (para referencia)
         positions['total_return'] = positions['unrealized_gain_pct']
 
-        # Para el color, usar daily_return si existe, sino total_return
-        positions['color_value'] = positions.apply(
-            lambda r: r['daily_return'] if pd.notna(r['daily_return']) else r['total_return'],
-            axis=1
-        )
-
-        # Rellenar NaN con 0 para evitar errores en el gráfico
-        positions['color_value'] = positions['color_value'].fillna(0)
-        positions['daily_return'] = positions['daily_return'].fillna(positions['total_return'])
+        # Para el color, usar ESTRICTAMENTE variación intradía
+        # Si no hay datos, usar 0 (color neutro)
+        positions['daily_change_pct'] = positions['daily_change_pct'].fillna(0.0)
 
         # Añadir display_name
         positions['display_name'] = positions['name'].apply(
@@ -876,7 +885,7 @@ class PortfolioService(BaseService):
         # Seleccionar y ordenar columnas
         result = positions[[
             'ticker', 'name', 'display_name', 'market_value', 'weight',
-            'daily_return', 'total_return', 'color_value', 'asset_type'
+            'current_price', 'daily_change_pct', 'total_return', 'asset_type'
         ]].copy()
 
         return result.sort_values('weight', ascending=False)

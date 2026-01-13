@@ -1,15 +1,48 @@
 """
-Core Module - Lógica de Negocio Pura
+Core Module - Logica de Negocio Pura
 
-Este módulo contiene la lógica de negocio sin dependencias de UI.
-Aquí residirán los cálculos matemáticos y algoritmos puros.
+Este modulo contiene la logica de negocio sin dependencias de UI.
+Aqui residen los calculos matematicos y algoritmos puros.
 
-Submódulos planificados:
-- analytics/: Métricas de riesgo y rendimiento (Sharpe, Beta, etc.)
-- portfolio/: Lógica de gestión de cartera (futuro refactor)
-- tax/: Cálculos fiscales (futuro refactor)
+Submodulos:
+- analytics/: Metricas de riesgo y rendimiento (Sharpe, Beta, etc.)
+- portfolio/: Logica de gestion de cartera (futuro refactor)
+- tax/: Calculos fiscales (futuro refactor)
 
-Principio: El código en core/ NO debe importar nada de app/ ni api/
+Principio: El codigo en core/ NO debe importar nada de app/ ni api/
+
+Uso:
+    from src.core.analytics import calculate_sharpe_ratio, calculate_beta
 """
 
-__all__ = []
+from src.core.analytics import (
+    # Risk metrics
+    calculate_volatility,
+    calculate_var,
+    calculate_cvar,
+    calculate_beta,
+    calculate_correlation,
+    calculate_max_drawdown,
+    # Performance metrics
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+    calculate_alpha,
+    calculate_information_ratio,
+    calculate_cagr,
+    calculate_total_return,
+)
+
+__all__ = [
+    'calculate_volatility',
+    'calculate_var',
+    'calculate_cvar',
+    'calculate_beta',
+    'calculate_correlation',
+    'calculate_max_drawdown',
+    'calculate_sharpe_ratio',
+    'calculate_sortino_ratio',
+    'calculate_alpha',
+    'calculate_information_ratio',
+    'calculate_cagr',
+    'calculate_total_return',
+]

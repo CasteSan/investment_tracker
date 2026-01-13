@@ -38,8 +38,9 @@ st.set_page_config(
 st.title("⚙️ Configuración")
 st.markdown("Personaliza tu experiencia con Investment Tracker")
 
-# Inicializar base de datos
-db = Database()
+# Inicializar base de datos (usando cartera seleccionada)
+db_path = st.session_state.get('db_path')
+db = Database(db_path=db_path)
 
 # ============================================================================
 # INICIALIZAR SESSION STATE PARA CONFIGURACIÓN
@@ -368,10 +369,10 @@ with tab4:
                 for tipo, count in trans_by_type.items():
                     st.markdown(f"- {tipo}: {count}")
             
-            # Tamaño de la base de datos
-            db_path = Path("data/database.db")
-            if db_path.exists():
-                db_size = db_path.stat().st_size / 1024  # KB
+            # Tamaño de la base de datos (usar la cartera seleccionada)
+            current_db_path = Path(db_path) if db_path else Path("data/database.db")
+            if current_db_path.exists():
+                db_size = current_db_path.stat().st_size / 1024  # KB
                 if db_size > 1024:
                     st.metric("Tamaño de BD", f"{db_size/1024:.2f} MB")
                 else:
@@ -475,8 +476,9 @@ with tab4:
         if st.button("🗑️ Limpiar caché de precios", type="secondary"):
             try:
                 from src.market_data import MarketDataManager
-                mdm = MarketDataManager()
+                mdm = MarketDataManager(db_path=db_path)
                 mdm.clear_price_cache()
+                mdm.close()
                 st.success("✅ Caché de precios limpiada")
                 logger.info("Caché de precios limpiada manualmente")
             except Exception as e:

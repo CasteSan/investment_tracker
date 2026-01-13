@@ -36,8 +36,9 @@ st.set_page_config(
 
 st.title("➕ Gestión de Operaciones")
 
-# Inicializar base de datos
-db = Database()
+# Inicializar base de datos (usando cartera seleccionada)
+db_path = st.session_state.get('db_path')
+db = Database(db_path=db_path)
 
 # ============================================================================
 # INICIALIZAR SESSION STATE

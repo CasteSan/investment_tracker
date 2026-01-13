@@ -1,6 +1,6 @@
 """
 Investment Tracker - Aplicación Streamlit
-Sesión 7 del Investment Tracker
+Sesión 7 del Investment Tracker (actualizado v1.1 - Multi-Cartera)
 
 Ejecutar: streamlit run app/main.py
 """
@@ -31,6 +31,7 @@ try:
     from src.tax_calculator import TaxCalculator
     from src.dividends import DividendManager
     from src.benchmarks import BenchmarkComparator, YFINANCE_AVAILABLE
+    from src.core.profile_manager import ProfileManager, get_profile_manager
     MODULES_AVAILABLE = True
 except ImportError as e:
     MODULES_AVAILABLE = False
@@ -84,15 +85,96 @@ def main():
     
     # Sidebar - Configuración global
     with st.sidebar:
+        # =================================================================
+        # SELECTOR DE CARTERA (Multi-Portfolio)
+        # =================================================================
+        st.header("💼 Cartera")
+
+        profile_manager = get_profile_manager()
+        profiles = profile_manager.get_profile_names()
+
+        # Si no hay perfiles, crear uno por defecto
+        if not profiles:
+            profile_manager.create_profile('Principal')
+            profiles = profile_manager.get_profile_names()
+
+        # Inicializar session_state si no existe
+        if 'current_profile' not in st.session_state:
+            st.session_state['current_profile'] = profile_manager.get_default_profile()
+
+        # Selector de cartera
+        selected_profile = st.selectbox(
+            "Seleccionar cartera",
+            profiles,
+            index=profiles.index(st.session_state['current_profile']) if st.session_state['current_profile'] in profiles else 0,
+            key="profile_selector"
+        )
+
+        # Detectar cambio de cartera
+        if selected_profile != st.session_state.get('current_profile'):
+            st.session_state['current_profile'] = selected_profile
+            st.rerun()
+
+        # Obtener db_path para la cartera seleccionada
+        current_db_path = profile_manager.get_db_path(selected_profile)
+        st.session_state['db_path'] = current_db_path
+
+        # Botón para crear nueva cartera
+        with st.expander("➕ Nueva cartera"):
+            new_profile_name = st.text_input("Nombre", key="new_profile_name")
+            if st.button("Crear", key="create_profile_btn"):
+                if new_profile_name:
+                    try:
+                        profile_manager.create_profile(new_profile_name)
+                        st.session_state['current_profile'] = new_profile_name
+                        st.success(f"Cartera '{new_profile_name}' creada")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                else:
+                    st.warning("Introduce un nombre")
+
+        # Configuración de la cartera actual
+        with st.expander("⚙️ Configuración cartera"):
+            st.caption(f"Cartera actual: **{selected_profile}**")
+
+            # Renombrar cartera
+            rename_name = st.text_input(
+                "Nuevo nombre",
+                key="rename_profile_name",
+                placeholder=selected_profile
+            )
+            if st.button("Renombrar", key="rename_profile_btn"):
+                if rename_name and rename_name != selected_profile:
+                    try:
+                        # Renombrar y obtener el nombre sanitizado
+                        clean_name = profile_manager.rename_profile(selected_profile, rename_name)
+                        st.session_state['current_profile'] = clean_name
+                        st.success(f"Cartera renombrada a '{clean_name}'")
+                        st.rerun()
+                    except PermissionError:
+                        st.error("No se puede renombrar: archivo en uso. Cierra otras pestañas y reintenta.")
+                    except ValueError as e:
+                        st.error(str(e))
+                elif rename_name == selected_profile:
+                    st.info("El nombre es el mismo")
+                else:
+                    st.warning("Introduce un nuevo nombre")
+
+        st.divider()
+
+        # =================================================================
+        # CONFIGURACIÓN FISCAL
+        # =================================================================
         st.header("⚙️ Configuración")
-        
+
         # Método de cálculo fiscal
         fiscal_method = st.selectbox(
             "Método fiscal",
             ["FIFO", "LIFO"],
             help="FIFO: First In First Out (por defecto en España)\nLIFO: Last In First Out"
         )
-        
+
         # Año fiscal
         from datetime import datetime
         current_year = datetime.now().year
@@ -101,27 +183,27 @@ def main():
             list(range(current_year, current_year - 5, -1)),
             index=0
         )
-        
+
         st.divider()
-        
+
         # Estado de la base de datos
         st.subheader("📁 Base de Datos")
         try:
-            db = Database()
+            db = Database(db_path=current_db_path)
             stats = db.get_database_stats()
             db.close()
-            
+
             st.metric("Transacciones", stats['total_transactions'])
             st.metric("Dividendos", stats['total_dividends'])
             st.metric("Activos únicos", stats['unique_tickers'])
         except Exception as e:
             st.error(f"Error: {e}")
-        
+
         st.divider()
-        
+
         # Info
-        st.caption("Investment Tracker v1.0")
-        st.caption("Sesiones 1-7")
+        st.caption("Investment Tracker v1.1")
+        st.caption(f"Cartera: {selected_profile}")
     
     # Guardar configuración en session_state
     st.session_state['fiscal_method'] = fiscal_method
@@ -131,14 +213,19 @@ def main():
     st.markdown('<p class="section-title">📈 Resumen de Cartera</p>', unsafe_allow_html=True)
     
     try:
-        # Obtener datos del portfolio
-        portfolio = Portfolio()
-        
+        # Obtener datos del portfolio (usando db_path de session_state)
+        db_path = st.session_state.get('db_path')
+        db = Database(db_path=db_path)
+        portfolio = Portfolio(db_path=db_path)
+
+        # Obtener precios de mercado actuales (igual que Dashboard)
+        current_prices = db.get_all_latest_prices()
+
         # Métricas principales en 4 columnas
         col1, col2, col3, col4 = st.columns(4)
-        
-        # Valor total
-        positions = portfolio.get_current_positions()
+
+        # Valor total (usando precios de mercado actualizados)
+        positions = portfolio.get_current_positions(current_prices=current_prices)
         total_value = positions['market_value'].sum() if not positions.empty else 0
         total_cost = positions['cost_basis'].sum() if not positions.empty else 0
         unrealized_gain = positions['unrealized_gain'].sum() if not positions.empty else 0
@@ -169,7 +256,7 @@ def main():
             )
         
         # Plusvalías realizadas del año
-        tax = TaxCalculator(method=fiscal_method)
+        tax = TaxCalculator(method=fiscal_method, db_path=db_path)
         fiscal_summary = tax.get_fiscal_year_summary(fiscal_year)
         realized_gain = fiscal_summary.get('net_gain', 0)
         tax.close()
@@ -184,7 +271,8 @@ def main():
             )
         
         portfolio.close()
-        
+        db.close()
+
         st.divider()
         
         # Segunda fila: Dividendos y navegación
@@ -193,7 +281,7 @@ def main():
         with col1:
             st.markdown('<p class="section-title">💵 Dividendos del Año</p>', unsafe_allow_html=True)
             
-            dm = DividendManager()
+            dm = DividendManager(db_path=db_path)
             div_totals = dm.get_total_dividends(year=fiscal_year)
             dm.close()
             

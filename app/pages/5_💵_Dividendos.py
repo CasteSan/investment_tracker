@@ -38,7 +38,8 @@ with st.sidebar:
     )
     
     # Ticker específico
-    db = Database()
+    db_path = st.session_state.get('db_path')
+    db = Database(db_path=db_path)
     tickers = db.get_all_tickers()
     db.close()
     
@@ -48,7 +49,7 @@ with st.sidebar:
     )
 
 try:
-    dm = DividendManager()
+    dm = DividendManager(db_path=db_path)
     
     # =========================================================================
     # RESUMEN DE DIVIDENDOS

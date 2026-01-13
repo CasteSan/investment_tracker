@@ -60,7 +60,8 @@ try:
     # ==========================================================================
     # OBTENER DATOS DEL SERVICIO (reemplaza ~75 lineas de logica)
     # ==========================================================================
-    service = PortfolioService()
+    db_path = st.session_state.get('db_path')
+    service = PortfolioService(db_path=db_path)
 
     # Verificar si hay posiciones
     if not service.has_positions():

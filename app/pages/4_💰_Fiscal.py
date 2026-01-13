@@ -26,6 +26,9 @@ st.set_page_config(page_title="Fiscal", page_icon="💰", layout="wide")
 
 st.title("💰 Información Fiscal")
 
+# Obtener db_path de la cartera seleccionada
+db_path = st.session_state.get('db_path')
+
 # Sidebar - Configuración
 with st.sidebar:
     st.header("⚙️ Configuración Fiscal")
@@ -59,7 +62,7 @@ with st.sidebar:
 
 try:
     # Cargar datos
-    tax = TaxCalculator(method=fiscal_method)
+    tax = TaxCalculator(method=fiscal_method, db_path=db_path)
     
     # =========================================================================
     # RESUMEN FISCAL DEL AÑO
@@ -113,7 +116,7 @@ try:
     # Obtener dividendos del año
     try:
         from src.dividends import DividendManager
-        dm = DividendManager()
+        dm = DividendManager(db_path=db_path)
         div_totals = dm.get_total_dividends(year=fiscal_year)
         dividends = div_totals.get('total_net', 0)
         dm.close()
@@ -220,7 +223,7 @@ try:
     st.info("💡 Simula el impacto fiscal de una venta antes de realizarla")
     
     # Obtener posiciones actuales para el selector
-    portfolio = Portfolio()
+    portfolio = Portfolio(db_path=db_path)
     positions = portfolio.get_current_positions()
     portfolio.close()
     

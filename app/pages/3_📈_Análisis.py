@@ -42,7 +42,8 @@ with st.sidebar:
     )
     
     # Divisa
-    db = Database()
+    db_path = st.session_state.get('db_path')
+    db = Database(db_path=db_path)
     currencies = db.get_currencies_used()
     db.close()
     
@@ -60,8 +61,8 @@ with st.sidebar:
 
 try:
     # Cargar datos
-    portfolio = Portfolio()
-    db = Database()
+    portfolio = Portfolio(db_path=db_path)
+    db = Database(db_path=db_path)
     
     # Obtener precios de mercado descargados
     current_prices = db.get_all_latest_prices()
@@ -187,7 +188,8 @@ try:
         start_date = None  # Todo el histórico
 
     # Obtener métricas usando el servicio
-    with PortfolioService() as service:
+    db_path = st.session_state.get('db_path')
+    with PortfolioService(db_path=db_path) as service:
         metrics = service.get_portfolio_metrics(
             start_date=start_date,
             end_date=end_date,

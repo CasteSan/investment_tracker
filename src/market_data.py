@@ -468,20 +468,22 @@ class MarketDataManager:
             # Calcular valor de mercado de posiciones abiertas
             market_value = 0.0
             cost_basis = 0.0
-            
+            has_real_prices = False  # Indica si hay al menos un precio real de mercado
+
             for ticker, pos in positions.items():
                 if pos['quantity'] > 0:
                     cost_basis += pos['cost']
-                    
+
                     # Obtener precio de mercado
                     if ticker in price_data:
                         # Buscar precio más cercano (hacia atrás)
                         price_series = price_data[ticker]
                         valid_prices = price_series[price_series.index <= current_date]
-                        
+
                         if not valid_prices.empty:
                             current_price = valid_prices.iloc[-1]
                             market_value += pos['quantity'] * current_price
+                            has_real_prices = True  # Tenemos al menos un precio real
                         else:
                             # Usar coste como fallback
                             market_value += pos['cost']
@@ -492,18 +494,19 @@ class MarketDataManager:
             # Solo incluir si hay posiciones
             if cost_basis > 0 or (include_closed and realized_pnl != 0):
                 unrealized_pnl = market_value - cost_basis
-                
+
                 result_row = {
                     'date': current_date,
                     'market_value': round(market_value, 2),
                     'cost_basis': round(cost_basis, 2),
-                    'unrealized_pnl': round(unrealized_pnl, 2)
+                    'unrealized_pnl': round(unrealized_pnl, 2),
+                    'has_market_prices': has_real_prices  # True si hay precios reales de mercado
                 }
-                
+
                 if include_closed:
                     result_row['realized_pnl'] = round(realized_pnl, 2)
                     result_row['total_value'] = round(market_value + realized_pnl, 2)
-                
+
                 results.append(result_row)
         
         if not results:
@@ -662,27 +665,30 @@ class MarketDataManager:
             # Calcular valor de mercado
             market_value = 0.0
             cost_basis = 0.0
-            
+            has_real_prices = False
+
             for ticker, p in pos.items():
                 if p['quantity'] > 0:
                     cost_basis += p['cost']
-                    
+
                     if ticker in price_data:
                         valid_prices = price_data[ticker][price_data[ticker].index <= current_date]
                         if not valid_prices.empty:
                             market_value += p['quantity'] * valid_prices.iloc[-1]
+                            has_real_prices = True
                         else:
                             market_value += p['cost']
                     else:
                         market_value += p['cost']
-            
+
             if cost_basis > 0:
                 results.append({
                     'date': current_date,
                     'market_value': round(market_value, 2),
                     'cost_basis': round(cost_basis, 2),
                     'unrealized_pnl': round(market_value - cost_basis, 2),
-                    'return_pct': round((market_value / cost_basis - 1) * 100, 2) if cost_basis > 0 else 0
+                    'return_pct': round((market_value / cost_basis - 1) * 100, 2) if cost_basis > 0 else 0,
+                    'has_market_prices': has_real_prices
                 })
         
         return pd.DataFrame(results)

@@ -102,9 +102,12 @@ with st.sidebar:
 # =============================================================================
 # INICIALIZAR GESTORES
 # =============================================================================
+# Obtener db_path de la cartera seleccionada
+db_path = st.session_state.get('db_path')
+
 try:
-    bc = BenchmarkComparator()
-    mdm = MarketDataManager()
+    bc = BenchmarkComparator(db_path=db_path)
+    mdm = MarketDataManager(db_path=db_path)
     
     # Limpiar caché para asegurar datos actualizados
     mdm.clear_price_cache()
@@ -361,25 +364,45 @@ try:
         
         if not portfolio_df.empty and len(portfolio_df) > 1:
             st.caption(f"📊 Modo: {mode_description}")
-            
+
+            # Filtrar solo días con precios reales de mercado (evitar línea plana)
+            if 'has_market_prices' in portfolio_df.columns:
+                portfolio_with_prices = portfolio_df[portfolio_df['has_market_prices'] == True].copy()
+                if portfolio_with_prices.empty:
+                    st.warning("""
+                    ⚠️ **No hay precios de mercado descargados** para los activos de esta cartera.
+
+                    Los datos mostrados usan el precio de compra como aproximación.
+                    Para ver valores de mercado reales, ve a la pestaña "Precios de mi Cartera"
+                    y descarga los precios de tus activos.
+                    """)
+                    portfolio_df = portfolio_df.copy()
+                else:
+                    # Informar si hay días sin datos
+                    days_without_prices = len(portfolio_df) - len(portfolio_with_prices)
+                    if days_without_prices > 0:
+                        st.info(f"ℹ️ Se omiten {days_without_prices} días sin precios de mercado disponibles.")
+                    portfolio_df = portfolio_with_prices
+            else:
+                portfolio_df = portfolio_df.copy()
+
             # Obtener serie del benchmark
             benchmark_series = bc.get_benchmark_series(
                 selected_benchmark,
                 start_date.strftime('%Y-%m-%d'),
                 end_date.strftime('%Y-%m-%d')
             )
-            
+
             if not benchmark_series.empty:
                 # =================================================================
                 # CALCULAR RENDIMIENTO SOBRE COSTE (no valor absoluto)
                 # Esto evita que las aportaciones afecten la comparación
                 # =================================================================
-                
+
                 # Calcular rendimiento diario de la cartera como % sobre coste
                 # return_pct = (market_value / cost_basis - 1) * 100
-                portfolio_df = portfolio_df.copy()
                 portfolio_df['return_pct'] = 0.0
-                
+
                 for i, row in portfolio_df.iterrows():
                     cost = row.get('cost_basis', row.get('invested_capital', 1))
                     value = row.get('market_value', row.get('total_value', cost))

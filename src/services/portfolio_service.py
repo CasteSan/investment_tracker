@@ -441,9 +441,9 @@ class PortfolioService(BaseService):
             Dict con información fiscal
         """
         try:
-            # Lazy loading del TaxCalculator
+            # Lazy loading del TaxCalculator (usando db_path de la cartera activa)
             if self._tax_calculator is None:
-                self._tax_calculator = TaxCalculator(method=method)
+                self._tax_calculator = TaxCalculator(method=method, db_path=str(self.db.db_path))
 
             summary = self._tax_calculator.get_fiscal_year_summary(fiscal_year)
 
@@ -476,9 +476,9 @@ class PortfolioService(BaseService):
             year = datetime.now().year
 
         try:
-            # Lazy loading del DividendManager
+            # Lazy loading del DividendManager (usando db_path de la cartera activa)
             if self._dividend_manager is None:
-                self._dividend_manager = DividendManager()
+                self._dividend_manager = DividendManager(db_path=str(self.db.db_path))
 
             totals = self._dividend_manager.get_total_dividends(year=year)
 

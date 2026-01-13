@@ -34,10 +34,14 @@ from src.core.analytics import (
 )
 
 from src.core.utils import smart_truncate
+from src.core.profile_manager import ProfileManager, get_profile_manager
 
 __all__ = [
     # Utils
     'smart_truncate',
+    # Profile management
+    'ProfileManager',
+    'get_profile_manager',
     'calculate_volatility',
     'calculate_var',
     'calculate_cvar',

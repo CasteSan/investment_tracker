@@ -42,7 +42,7 @@ try:
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
         calculate_alpha,
-        calculate_cagr,
+        calculate_cagr_from_prices,
         calculate_total_return,
     )
 except ImportError:
@@ -61,7 +61,7 @@ except ImportError:
         calculate_sharpe_ratio,
         calculate_sortino_ratio,
         calculate_alpha,
-        calculate_cagr,
+        calculate_cagr_from_prices,
         calculate_total_return,
     )
 
@@ -604,7 +604,7 @@ class PortfolioService(BaseService):
                 portfolio_values
             ))
 
-            result['performance']['cagr'] = float(calculate_cagr(
+            result['performance']['cagr'] = float(calculate_cagr_from_prices(
                 portfolio_values
             ))
 

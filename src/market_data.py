@@ -40,46 +40,76 @@ logger = get_logger(__name__)
 class MarketDataManager:
     """
     Gestor de datos de mercado para la cartera.
-    
+
     Permite descargar precios históricos de los activos y calcular
     el valor real de mercado de la cartera en cualquier fecha.
-    
+
     Uso:
         mdm = MarketDataManager()
-        
+
         # Descargar precios de todos los activos de la cartera
         mdm.download_portfolio_prices('2024-01-01', '2026-01-06')
-        
+
         # Obtener valor de mercado de la cartera
         series = mdm.get_portfolio_market_value_series('2024-01-01')
-        
+
         # Obtener datos estilo Investing.com
         data = mdm.get_investing_style_data('2024-01-01')
-        
+
         mdm.close()
     """
-    
+
+    # Sufijos de mercados europeos para probar
+    EUROPEAN_SUFFIXES = ['.MC', '.PA', '.DE', '.L', '.AS', '.MI', '.SW', '.BR', '.VI']
+
     def __init__(self, db_path: str = None):
         """
         Inicializa el gestor de datos de mercado.
-        
+
         Args:
             db_path: Ruta a la base de datos (opcional)
         """
         logger.debug("Inicializando MarketDataManager")
         self.db = Database(db_path) if db_path else Database()
         self._price_cache = {}  # Cache en memoria: {ticker: DataFrame}
+        self._failed_tickers = set()  # Cache de tickers sin datos (evita reintentos)
+        self._isin_to_ticker = {}  # Cache de ISIN -> ticker encontrado
         logger.info("MarketDataManager inicializado")
+
+    @staticmethod
+    def _is_isin(identifier: str) -> bool:
+        """
+        Detecta si un identificador es un ISIN.
+
+        ISIN format: 2 letras pais + 9 caracteres alfanumericos + 1 digito control
+        Ejemplos: IE00BLP5S460, US0378331005, LU0996182563
+        """
+        if not identifier or len(identifier) != 12:
+            return False
+        # Primeros 2 caracteres deben ser letras (codigo pais)
+        if not identifier[:2].isalpha():
+            return False
+        # El resto puede ser alfanumerico
+        return identifier[2:].isalnum()
     
     def close(self):
         """Cierra la conexión a la base de datos"""
         self.db.close()
         logger.debug("MarketDataManager cerrado")
     
-    def clear_price_cache(self):
-        """Limpia el cache de precios en memoria"""
+    def clear_price_cache(self, include_failed: bool = False):
+        """
+        Limpia el cache de precios en memoria.
+
+        Args:
+            include_failed: Si True, tambien limpia la lista de tickers fallidos
+                           permitiendo reintentar la descarga
+        """
         self._price_cache = {}
-        logger.debug("Cache de precios limpiado")
+        self._isin_to_ticker = {}
+        if include_failed:
+            self._failed_tickers = set()
+        logger.debug(f"Cache de precios limpiado (include_failed={include_failed})")
     
     # =========================================================================
     # DESCARGA DE PRECIOS
@@ -109,6 +139,35 @@ class MarketDataManager:
         
         return list(tickers.values())
     
+    def _search_ticker_for_isin(self, isin: str) -> Optional[str]:
+        """
+        Intenta encontrar el ticker de Yahoo Finance para un ISIN.
+
+        Args:
+            isin: Codigo ISIN del activo
+
+        Returns:
+            Ticker encontrado o None
+        """
+        # Revisar cache primero
+        if isin in self._isin_to_ticker:
+            return self._isin_to_ticker[isin]
+
+        try:
+            # Usar la funcion de busqueda de yfinance
+            ticker_obj = yf.Ticker(isin)
+            search_result = ticker_obj.info
+
+            if search_result and 'symbol' in search_result:
+                found_ticker = search_result['symbol']
+                self._isin_to_ticker[isin] = found_ticker
+                logger.info(f"ISIN {isin} -> ticker {found_ticker}")
+                return found_ticker
+        except Exception as e:
+            logger.debug(f"Busqueda de ISIN {isin} fallo: {e}")
+
+        return None
+
     def download_ticker_prices(self,
                                ticker: str,
                                start_date: str,
@@ -116,36 +175,66 @@ class MarketDataManager:
                                save_to_db: bool = True) -> pd.DataFrame:
         """
         Descarga precios históricos de un ticker desde Yahoo Finance.
-        
+
         Args:
-            ticker: Símbolo del activo
+            ticker: Símbolo del activo o ISIN
             start_date: Fecha inicio (YYYY-MM-DD)
             end_date: Fecha fin (si None, usa hoy)
             save_to_db: Si guardar en base de datos
-        
+
         Returns:
             DataFrame con columnas: date, close, adj_close
+
+        Nota:
+            Para fondos europeos identificados por ISIN, yfinance puede no tener datos.
+            El sistema intentara buscar el ticker correspondiente, pero muchos fondos
+            mutuos no estan disponibles en Yahoo Finance.
         """
         if not YFINANCE_AVAILABLE:
             raise ImportError("yfinance no está instalado. Ejecuta: pip install yfinance")
-        
+
+        # Verificar si este ticker ya fallo anteriormente
+        if ticker in self._failed_tickers:
+            logger.debug(f"Ticker {ticker} en lista de fallidos, saltando")
+            return pd.DataFrame()
+
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
-        
+
         try:
-            # Intentar descargar
-            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
-            
-            if data.empty:
-                # Intentar con sufijos comunes para mercados europeos
-                for suffix in ['.MC', '.PA', '.DE', '.L', '.AS', '.MI']:
+            search_ticker = ticker
+            data = pd.DataFrame()
+
+            # Si es un ISIN, intentar encontrar el ticker primero
+            if self._is_isin(ticker):
+                found_ticker = self._search_ticker_for_isin(ticker)
+                if found_ticker:
+                    search_ticker = found_ticker
+                    logger.info(f"Usando ticker {found_ticker} para ISIN {ticker}")
+
+            # Intentar descargar con el ticker (o ticker encontrado)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                data = yf.download(search_ticker, start=start_date, end=end_date, progress=False)
+
+            # Si no hay datos, intentar con sufijos europeos
+            if data.empty and not self._is_isin(ticker):
+                for suffix in self.EUROPEAN_SUFFIXES:
                     alt_ticker = ticker + suffix
-                    data = yf.download(alt_ticker, start=start_date, end=end_date, progress=False)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        data = yf.download(alt_ticker, start=start_date, end=end_date, progress=False)
                     if not data.empty:
-                        print(f"   ✅ Encontrado como {alt_ticker}")
+                        logger.info(f"Ticker {ticker} encontrado como {alt_ticker}")
                         break
-            
+
             if data.empty:
+                # Marcar como fallido para no reintentar
+                self._failed_tickers.add(ticker)
+                if self._is_isin(ticker):
+                    logger.warning(f"ISIN {ticker}: sin datos en yfinance (fondo no disponible)")
+                else:
+                    logger.warning(f"Ticker {ticker}: sin datos en yfinance")
                 return pd.DataFrame()
             
             # Procesar datos

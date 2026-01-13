@@ -39,6 +39,7 @@ from src.core.analytics.performance import (
     calculate_alpha,
     calculate_information_ratio,
     calculate_cagr,
+    calculate_cagr_from_prices,
     calculate_total_return,
 )
 
@@ -56,5 +57,6 @@ __all__ = [
     'calculate_alpha',
     'calculate_information_ratio',
     'calculate_cagr',
+    'calculate_cagr_from_prices',
     'calculate_total_return',
 ]

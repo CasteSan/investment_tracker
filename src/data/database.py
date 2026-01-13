@@ -389,6 +389,20 @@ class Database:
 
         return query.all()
 
+    def get_transaction_by_id(self, transaction_id: int) -> Optional[Transaction]:
+        """
+        Obtiene una transaccion por su ID.
+
+        Args:
+            transaction_id: ID de la transaccion
+
+        Returns:
+            Transaction o None si no existe
+        """
+        return self.session.query(Transaction).filter(
+            Transaction.id == transaction_id
+        ).first()
+
     def update_transaction(self, transaction_id: int, new_data: Dict) -> bool:
         """Actualiza una transacción existente"""
         transaction = self.session.query(Transaction).filter(Transaction.id == transaction_id).first()

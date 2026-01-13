@@ -772,11 +772,12 @@ class PortfolioService(BaseService):
         """
         Obtiene datos para el mapa de calor (treemap) del dashboard.
 
-        Calcula la variación intradía de cada activo para determinar el color,
-        y usa el peso en cartera para el tamaño de cada celda.
+        Calcula la variación del último día de mercado para cada activo usando
+        la lógica robusta de MarketDataManager.get_latest_price_and_change().
 
-        La variación intradía se calcula como:
-        daily_change_pct = (current_price - previous_close) / previous_close * 100
+        Esta lógica garantiza que siempre se muestre la variación del último
+        día de mercado disponible, comparando el cierre más reciente con el
+        cierre del día anterior.
 
         Args:
             category_filter: Filtro de categoría:
@@ -789,12 +790,10 @@ class PortfolioService(BaseService):
             DataFrame con columnas:
                 - ticker, name, display_name
                 - market_value, weight, current_price
-                - daily_change_pct (% variación intradía)
+                - daily_change_pct (% variación del último día de mercado)
                 - total_return (% ganancia total acumulada)
                 - asset_type
         """
-        from datetime import timedelta
-
         # Obtener posiciones actuales con precios de mercado
         current_prices = self.db.get_all_latest_prices()
         positions = self.portfolio.get_current_positions(current_prices=current_prices)
@@ -821,51 +820,29 @@ class PortfolioService(BaseService):
         total_value = positions['market_value'].sum()
         positions['weight'] = (positions['market_value'] / total_value * 100)
 
-        # Calcular variación intradía para cada ticker
-        today = datetime.now().date()
-        yesterday = today - timedelta(days=1)
-        # Si ayer fue fin de semana, buscar el viernes
-        while yesterday.weekday() >= 5:  # 5=Sábado, 6=Domingo
-            yesterday -= timedelta(days=1)
-
+        # Calcular variación del último día de mercado para cada ticker
+        # Usamos el nuevo método robusto que siempre devuelve la variación correcta
         daily_changes = []
         current_prices_list = []
 
         for _, row in positions.iterrows():
             ticker = row['ticker']
-            daily_change = None
-            current_price = None
 
-            try:
-                # Obtener el precio actual de mercado
+            # Usar el método robusto para obtener precio y variación
+            price_data = self.market_data.get_latest_price_and_change(ticker)
+
+            if price_data['has_data']:
+                daily_changes.append(price_data['daily_change_pct'])
+                current_prices_list.append(price_data['current_price'])
+            else:
+                # Fallback: usar precio de market_value si está disponible
+                daily_changes.append(None)
                 if ticker in current_prices:
-                    current_price = current_prices[ticker]
+                    current_prices_list.append(current_prices[ticker])
+                elif row['quantity'] > 0:
+                    current_prices_list.append(row['market_value'] / row['quantity'])
                 else:
-                    # Calcular desde market_value y quantity
-                    if row['quantity'] > 0:
-                        current_price = row['market_value'] / row['quantity']
-
-                # Obtener el cierre del día anterior
-                prices = self.market_data.get_ticker_prices(
-                    ticker,
-                    start_date=(yesterday - timedelta(days=7)).strftime('%Y-%m-%d'),
-                    end_date=yesterday.strftime('%Y-%m-%d')
-                )
-
-                if not prices.empty and current_price is not None:
-                    # Ordenar por fecha y tomar el último (cierre de ayer)
-                    prices = prices.sort_values('date')
-                    previous_close = prices.iloc[-1]['adj_close']
-
-                    if previous_close > 0:
-                        # Variación intradía: (precio actual - cierre ayer) / cierre ayer
-                        daily_change = ((current_price - previous_close) / previous_close) * 100
-
-            except Exception as e:
-                logger.debug(f"No se pudo calcular variación intradía para {ticker}: {e}")
-
-            daily_changes.append(daily_change)
-            current_prices_list.append(current_price)
+                    current_prices_list.append(None)
 
         positions['daily_change_pct'] = daily_changes
         positions['current_price'] = current_prices_list
@@ -873,7 +850,7 @@ class PortfolioService(BaseService):
         # Guardar rentabilidad total acumulada (para referencia)
         positions['total_return'] = positions['unrealized_gain_pct']
 
-        # Para el color, usar ESTRICTAMENTE variación intradía
+        # Para el color, usar variación del último día de mercado
         # Si no hay datos, usar 0 (color neutro)
         positions['daily_change_pct'] = positions['daily_change_pct'].fillna(0.0)
 

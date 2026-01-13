@@ -531,8 +531,9 @@ def plot_portfolio_treemap(df: pd.DataFrame,
     plot_df[size_col] = plot_df[size_col].abs()
 
     # Crear texto formateado para mostrar en cada celda: nombre + variación
+    # Sin negrita para mejor legibilidad
     plot_df['cell_text'] = plot_df.apply(
-        lambda r: f"<b>{r[label_col]}</b><br>{r[color_col]:+.2f}%",
+        lambda r: f"{r[label_col]}<br>{r[color_col]:+.2f}%",
         axis=1
     )
 
@@ -571,7 +572,11 @@ def plot_portfolio_treemap(df: pd.DataFrame,
         text=plot_df['cell_text'],
         texttemplate='%{text}',
         textposition='middle center',
-        textfont=dict(size=14, family="Arial, sans-serif"),
+        # Fuente limpia y legible (tamaño intermedio)
+        textfont=dict(
+            size=24,
+            family="Arial, sans-serif"
+        ),
         # Hover con información completa
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
@@ -583,17 +588,20 @@ def plot_portfolio_treemap(df: pd.DataFrame,
         ),
     )
 
-    # Configurar layout
+    # Configurar layout sin márgenes para llenar el contenedor
     fig.update_layout(
-        height=450,
+        height=500,
         template='plotly_white',
-        margin=dict(t=50, l=10, r=10, b=10),
+        margin=dict(t=0, l=0, r=0, b=0),
         coloraxis_colorbar=dict(
             title="Var. %",
             tickformat="+.1f",
             ticksuffix="%",
             len=0.8
-        )
+        ),
+        # uniformtext: escala proporcional, oculta si no cabe
+        uniformtext_minsize=12,
+        uniformtext_mode='hide'
     )
 
     return fig

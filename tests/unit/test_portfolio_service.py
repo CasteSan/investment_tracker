@@ -429,3 +429,94 @@ class TestGetHeatmapData:
         if len(result) > 1:
             weights = result['weight'].tolist()
             assert weights == sorted(weights, reverse=True)
+
+
+class TestGetLatestPriceAndChange:
+    """Tests para MarketDataManager.get_latest_price_and_change()."""
+
+    def test_returns_dict_structure(self, portfolio_service):
+        """Verifica que devuelve un dict con la estructura correcta."""
+        from src.market_data import MarketDataManager
+
+        mdm = MarketDataManager(portfolio_service.db.db_path)
+        result = mdm.get_latest_price_and_change('AAPL')
+
+        # Verificar estructura del resultado
+        assert isinstance(result, dict)
+        assert 'current_price' in result
+        assert 'previous_close' in result
+        assert 'daily_change_pct' in result
+        assert 'last_date' in result
+        assert 'has_data' in result
+
+        mdm.close()
+
+    def test_returns_has_data_false_for_unknown_ticker(self, portfolio_service):
+        """Ticker desconocido devuelve has_data=False."""
+        from src.market_data import MarketDataManager
+
+        mdm = MarketDataManager(portfolio_service.db.db_path)
+        result = mdm.get_latest_price_and_change('TICKER_QUE_NO_EXISTE_XYZ123')
+
+        assert result['has_data'] is False
+        assert result['daily_change_pct'] is None
+
+        mdm.close()
+
+    def test_daily_change_not_zero_with_price_history(self, temp_db_path):
+        """Con historial de precios, daily_change no debe ser siempre 0."""
+        from src.market_data import MarketDataManager
+        from src.data import Database
+        from datetime import datetime, timedelta
+
+        db = Database(temp_db_path)
+
+        # Insertar precios simulados para un ticker
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        day_before = today - timedelta(days=2)
+
+        # Añadir precios con variación
+        db.add_asset_price('TEST_TICKER', day_before.strftime('%Y-%m-%d'), 100.0, 100.0)
+        db.add_asset_price('TEST_TICKER', yesterday.strftime('%Y-%m-%d'), 105.0, 105.0)
+
+        db.close()
+
+        # Probar el método
+        mdm = MarketDataManager(temp_db_path)
+        result = mdm.get_latest_price_and_change('TEST_TICKER')
+
+        assert result['has_data'] is True
+        assert result['current_price'] == 105.0
+        assert result['previous_close'] == 100.0
+        # Variación esperada: (105 - 100) / 100 * 100 = 5%
+        assert abs(result['daily_change_pct'] - 5.0) < 0.01
+
+        mdm.close()
+
+    def test_daily_change_calculation_negative(self, temp_db_path):
+        """Verifica cálculo correcto para variación negativa."""
+        from src.market_data import MarketDataManager
+        from src.data import Database
+        from datetime import datetime, timedelta
+
+        db = Database(temp_db_path)
+
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        day_before = today - timedelta(days=2)
+
+        # Precio baja de 100 a 95 (-5%)
+        db.add_asset_price('TEST_NEG', day_before.strftime('%Y-%m-%d'), 100.0, 100.0)
+        db.add_asset_price('TEST_NEG', yesterday.strftime('%Y-%m-%d'), 95.0, 95.0)
+
+        db.close()
+
+        mdm = MarketDataManager(temp_db_path)
+        result = mdm.get_latest_price_and_change('TEST_NEG')
+
+        assert result['has_data'] is True
+        # Variación esperada: (95 - 100) / 100 * 100 = -5%
+        assert abs(result['daily_change_pct'] - (-5.0)) < 0.01
+
+        mdm.close()

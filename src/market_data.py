@@ -730,7 +730,7 @@ class MarketDataManager:
     def clear_price_cache(self, ticker: str = None):
         """
         Limpia la caché de precios.
-        
+
         Args:
             ticker: Si se especifica, solo limpia ese ticker
         """
@@ -738,6 +738,92 @@ class MarketDataManager:
             self._price_cache.pop(ticker, None)
         else:
             self._price_cache.clear()
+
+    def get_latest_price_and_change(self, ticker: str, lookback_days: int = 14) -> Dict:
+        """
+        Obtiene el precio más reciente y la variación respecto al cierre anterior.
+
+        Lógica robusta para calcular la variación del último día de mercado:
+        1. Obtiene el historial de precios (últimos N días)
+        2. Si hay al menos 2 días de datos, calcula la variación entre
+           el último cierre disponible y el penúltimo cierre
+
+        Esta función siempre devuelve la variación del último día de mercado
+        disponible, independientemente de si el mercado está abierto hoy o no.
+
+        Args:
+            ticker: Símbolo del activo
+            lookback_days: Días hacia atrás para buscar datos (default 14)
+
+        Returns:
+            Dict con:
+                - current_price: Precio más reciente
+                - previous_close: Cierre del día anterior
+                - daily_change_pct: Variación porcentual (None si no hay datos)
+                - last_date: Fecha del precio más reciente
+                - has_data: True si se pudo calcular la variación
+        """
+        from datetime import timedelta
+
+        result = {
+            'current_price': None,
+            'previous_close': None,
+            'daily_change_pct': None,
+            'last_date': None,
+            'has_data': False
+        }
+
+        try:
+            # Calcular rango de fechas
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=lookback_days)
+
+            # Obtener precios del periodo
+            prices = self.get_ticker_prices(
+                ticker,
+                start_date=start_date.strftime('%Y-%m-%d'),
+                end_date=end_date.strftime('%Y-%m-%d')
+            )
+
+            if prices.empty or len(prices) < 2:
+                logger.debug(f"Ticker {ticker}: datos insuficientes ({len(prices)} registros)")
+                return result
+
+            # Ordenar por fecha y obtener los dos últimos días
+            prices = prices.sort_values('date', ascending=True)
+
+            # Último día disponible (precio más reciente)
+            last_row = prices.iloc[-1]
+            current_price = float(last_row['adj_close'])
+            last_date = last_row['date']
+
+            # Penúltimo día (cierre anterior)
+            prev_row = prices.iloc[-2]
+            previous_close = float(prev_row['adj_close'])
+
+            # Calcular variación porcentual
+            if previous_close > 0:
+                daily_change_pct = ((current_price - previous_close) / previous_close) * 100
+            else:
+                daily_change_pct = 0.0
+
+            result.update({
+                'current_price': current_price,
+                'previous_close': previous_close,
+                'daily_change_pct': round(daily_change_pct, 4),
+                'last_date': last_date,
+                'has_data': True
+            })
+
+            logger.debug(
+                f"Ticker {ticker}: {previous_close:.2f} -> {current_price:.2f} "
+                f"({daily_change_pct:+.2f}%)"
+            )
+
+        except Exception as e:
+            logger.debug(f"Error obteniendo variación para {ticker}: {e}")
+
+        return result
 
 
 # =============================================================================

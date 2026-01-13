@@ -185,7 +185,7 @@ try:
             hover_name_col='name',
             title=""
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="heatmap_treemap")
 
         # Leyenda informativa
         st.caption(

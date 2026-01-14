@@ -468,7 +468,6 @@ with tab_catalog:
                     col_nav, col_bars = st.columns(2)
 
                     with col_nav:
-                        st.markdown("**Evolucion NAV**")
                         # Obtener historico NAV con fallback
                         nav_df = pd.DataFrame()
                         nav_years = 3
@@ -484,27 +483,50 @@ with tab_catalog:
                                 continue
 
                         if not nav_df.empty and 'date' in nav_df.columns and 'nav' in nav_df.columns:
+                            # Calcular rentabilidad del periodo
+                            nav_inicial = nav_df['nav'].iloc[0]
+                            nav_final = nav_df['nav'].iloc[-1]
+                            nav_return = ((nav_final - nav_inicial) / nav_inicial) * 100
+                            nav_color = '#28a745' if nav_return >= 0 else '#dc3545'
+
+                            # Titulo con KPI de rentabilidad
+                            st.markdown(
+                                f"**Valor Liquidativo (NAV)** "
+                                f"<span style='color:{nav_color}; font-weight:bold;'>({nav_return:+.1f}%)</span>",
+                                unsafe_allow_html=True
+                            )
+
                             fig_nav = go.Figure()
                             fig_nav.add_trace(go.Scatter(
                                 x=nav_df['date'],
                                 y=nav_df['nav'],
                                 mode='lines',
                                 fill='tozeroy',
-                                fillcolor='rgba(0, 123, 255, 0.1)',
-                                line=dict(color='#007bff', width=2),
-                                name='NAV'
+                                fillcolor='rgba(0, 123, 255, 0.15)',
+                                line=dict(color='#007bff', width=2.5),
+                                name='NAV',
+                                hovertemplate='%{x|%d %b %Y}<br>NAV: %{y:.2f}<extra></extra>'
                             ))
                             fig_nav.update_layout(
                                 margin=dict(t=10, b=40, l=50, r=10),
-                                height=280,
+                                height=380,
                                 xaxis_title="",
                                 yaxis_title="NAV",
                                 showlegend=False,
-                                hovermode='x unified'
+                                hovermode='x unified',
+                                xaxis=dict(
+                                    rangeslider=dict(visible=False),
+                                    type='date'
+                                )
                             )
-                            st.plotly_chart(fig_nav, use_container_width=True)
-                            st.caption(f"Ultimos {nav_years} {'ano' if nav_years == 1 else 'anos'}")
+                            st.plotly_chart(
+                                fig_nav,
+                                use_container_width=True,
+                                config={'scrollZoom': True, 'displayModeBar': True}
+                            )
+                            st.caption(f"Ultimos {nav_years} {'ano' if nav_years == 1 else 'anos'} | Zoom: scroll o arrastra")
                         else:
+                            st.markdown("**Valor Liquidativo (NAV)**")
                             st.info("Grafico NAV no disponible temporalmente (API Morningstar)")
 
                     with col_bars:
@@ -530,24 +552,39 @@ with tab_catalog:
                             df_returns = pd.DataFrame(returns_data)
                             colors = ['#28a745' if v >= 0 else '#dc3545' for v in df_returns['Rentabilidad']]
 
+                            # Lógica condicional: barras pequeñas (<5%) etiqueta fuera, grandes dentro
+                            text_positions = []
+                            text_colors = []
+                            for v in df_returns['Rentabilidad']:
+                                if abs(v) < 5:
+                                    text_positions.append('outside')
+                                    text_colors.append('#333333')  # Negro/gris oscuro
+                                else:
+                                    text_positions.append('inside')
+                                    text_colors.append('white')
+
                             fig_bars = go.Figure(data=[
                                 go.Bar(
                                     x=df_returns['Periodo'],
                                     y=df_returns['Rentabilidad'],
                                     marker_color=colors,
                                     text=[f"{v:+.1f}%" for v in df_returns['Rentabilidad']],
-                                    textposition='inside',
-                                    textfont=dict(size=16, color='white', family='Arial Black'),
-                                    insidetextanchor='middle'
+                                    textposition=text_positions,
+                                    textfont=dict(size=18, family='Arial Black'),
+                                    insidetextanchor='middle',
+                                    width=0.6
                                 )
                             ])
+                            # Aplicar colores de texto por barra
+                            fig_bars.update_traces(textfont_color=text_colors)
+
                             fig_bars.update_layout(
                                 margin=dict(t=30, b=40, l=50, r=10),
-                                height=280,
+                                height=380,
                                 xaxis_title="",
                                 yaxis_title="Rentabilidad %",
                                 showlegend=False,
-                                bargap=0.3
+                                bargap=0.25
                             )
                             fig_bars.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
                             st.plotly_chart(fig_bars, use_container_width=True)
@@ -607,13 +644,13 @@ with tab_catalog:
                                 )
                                 fig_tree.update_layout(
                                     margin=dict(t=10, b=10, l=10, r=10),
-                                    height=350,
+                                    height=500,
                                     coloraxis_showscale=False
                                 )
                                 fig_tree.update_traces(
                                     textinfo='label+percent entry',
-                                    textfont_size=12,
-                                    marker=dict(cornerradius=3)
+                                    textfont_size=14,
+                                    marker=dict(cornerradius=4)
                                 )
                                 st.plotly_chart(fig_tree, use_container_width=True)
                                 st.caption("*Limitado a Top 10 por API de Morningstar")
@@ -644,20 +681,20 @@ with tab_catalog:
                                 fig_sec = go.Figure(data=[go.Pie(
                                     labels=df_sec['name'],
                                     values=df_sec['weight'],
-                                    hole=0.45,
+                                    hole=0.4,
                                     text=labels_sec,
                                     textposition='outside',
                                     textinfo='text',
-                                    textfont=dict(size=11, family='Arial'),
+                                    textfont=dict(size=13, family='Arial'),
                                     insidetextorientation='horizontal',
                                     marker=dict(colors=px.colors.qualitative.Set2),
                                     hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
                                 )])
                                 fig_sec.update_layout(
-                                    margin=dict(t=20, b=20, l=20, r=20),
-                                    height=180,
+                                    margin=dict(t=30, b=30, l=40, r=40),
+                                    height=240,
                                     showlegend=False,
-                                    uniformtext_minsize=10,
+                                    uniformtext_minsize=11,
                                     uniformtext_mode='hide'
                                 )
                                 st.plotly_chart(fig_sec, use_container_width=True)
@@ -683,20 +720,20 @@ with tab_catalog:
                                 fig_cty = go.Figure(data=[go.Pie(
                                     labels=df_cty['name'],
                                     values=df_cty['weight'],
-                                    hole=0.45,
+                                    hole=0.4,
                                     text=labels_cty,
                                     textposition='outside',
                                     textinfo='text',
-                                    textfont=dict(size=11, family='Arial'),
+                                    textfont=dict(size=13, family='Arial'),
                                     insidetextorientation='horizontal',
                                     marker=dict(colors=px.colors.qualitative.Pastel),
                                     hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
                                 )])
                                 fig_cty.update_layout(
-                                    margin=dict(t=20, b=20, l=20, r=20),
-                                    height=180,
+                                    margin=dict(t=30, b=30, l=40, r=40),
+                                    height=240,
                                     showlegend=False,
-                                    uniformtext_minsize=10,
+                                    uniformtext_minsize=11,
                                     uniformtext_mode='hide'
                                 )
                                 st.plotly_chart(fig_cty, use_container_width=True)

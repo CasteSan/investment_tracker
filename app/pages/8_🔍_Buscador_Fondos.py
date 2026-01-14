@@ -654,6 +654,15 @@ with tab_catalog:
                                 st.markdown(f"[🔗 Ver ficha en Morningstar]({fund.url})")
 
                     with col_actions:
+                        if st.button("🔄 Actualizar datos", type="primary", use_container_width=True):
+                            with st.spinner("Actualizando desde Morningstar..."):
+                                try:
+                                    updated = service.fetch_and_import_fund(fund.isin)
+                                    st.success(f"Datos actualizados")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+
                         if st.button("🗑️ Eliminar", type="secondary", use_container_width=True):
                             service.repository.delete_by_isin(fund.isin)
                             st.success(f"Fondo {fund.isin} eliminado")

@@ -130,6 +130,9 @@ class Fund(Base):
     url = Column(String(500))  # URL ficha del fondo
     notes = Column(Text)
 
+    # Categoria personalizada del usuario
+    custom_category = Column(String(50))  # RV Global, RF Corto Plazo, etc.
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -277,3 +280,17 @@ DISTRIBUTION_POLICIES = {
     'accumulation': 'Acumulacion',
     'distribution': 'Distribucion',
 }
+
+# Categorias personalizadas del usuario
+CUSTOM_CATEGORIES = [
+    "RV Global",
+    "RV USA",
+    "RV Europa",
+    "RV Emergente",
+    "RV Sectorial",
+    "RF Corto Plazo",
+    "RF Largo Plazo",
+    "Retorno Absoluto",
+    "Monetario",
+    "Otros",
+]

@@ -42,6 +42,8 @@ FUND_COLUMNS = [
     # Campos que podrían faltar en BDs antiguas
     ('benchmark_name', 'VARCHAR(200)'),
     ('benchmark_ticker', 'VARCHAR(50)'),
+    # Migración 003: categoria personalizada
+    ('custom_category', 'VARCHAR(50)'),
 ]
 
 

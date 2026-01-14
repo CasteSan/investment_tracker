@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.services.fund_service import FundService
 from src.providers.morningstar import FundNotFoundError, FundDataProviderError
-from src.data.models import FUND_RISK_LEVELS
+from src.data.models import FUND_RISK_LEVELS, CUSTOM_CATEGORIES
 
 
 # =============================================================================
@@ -283,6 +283,17 @@ with tab_import:
 
         st.divider()
 
+        # Selector de categoria personalizada
+        st.markdown("**Asignar categoria personalizada:**")
+        selected_category = st.selectbox(
+            "Categoria",
+            options=[""] + CUSTOM_CATEGORIES,
+            index=0,
+            format_func=lambda x: "Seleccionar categoria..." if x == "" else x,
+            key="import_custom_category",
+            label_visibility="collapsed"
+        )
+
         # Boton guardar
         col_save, col_cancel = st.columns([1, 3])
 
@@ -292,6 +303,10 @@ with tab_import:
                     try:
                         with FundService(db_path=db_path) as service:
                             fund = service.fetch_and_import_fund(preview['isin'])
+                            # Guardar categoria personalizada si se seleccionó
+                            if selected_category:
+                                fund.custom_category = selected_category
+                                service.repository.update(fund)
                             st.success(f"Fondo guardado: {fund.name}")
                             st.session_state.fund_preview = None
                             invalidate_fund_cache()
@@ -319,7 +334,20 @@ with tab_catalog:
                 st.info("El catalogo esta vacio. Usa la pestana 'Importar Fondo' para anadir fondos.")
                 st.stop()
 
-            # Filtros en linea
+            # =================================================================
+            # FILTRO POR CATEGORIA PERSONALIZADA (Pills)
+            # =================================================================
+            st.markdown("**Filtrar por categoria:**")
+            category_options = ["Todas"] + CUSTOM_CATEGORIES
+            selected_cat_filter = st.radio(
+                "Categoria",
+                options=category_options,
+                horizontal=True,
+                key="catalog_category_filter",
+                label_visibility="collapsed"
+            )
+
+            # Filtros adicionales en linea
             col_filter1, col_filter2, col_filter3 = st.columns(3)
 
             with col_filter1:
@@ -362,7 +390,13 @@ with tab_catalog:
             filters['order_desc'] = order_desc
 
             # Obtener fondos
-            funds = service.search_funds(**filters)
+            all_funds = service.search_funds(**filters)
+
+            # Filtrar por categoria personalizada
+            if selected_cat_filter != "Todas":
+                funds = [f for f in all_funds if f.custom_category == selected_cat_filter]
+            else:
+                funds = all_funds
 
             if not funds:
                 st.warning("No se encontraron fondos con esos filtros.")
@@ -389,40 +423,81 @@ with tab_catalog:
             for f in funds:
                 data_for_table.append({
                     'ISIN': f.isin,
-                    'Nombre': f.name[:50] + '...' if len(f.name) > 50 else f.name,
-                    'Categoria': f.morningstar_category or f.category or '-',
+                    'Nombre': f.name[:45] + '...' if len(f.name) > 45 else f.name,
+                    'Mi Cat.': f.custom_category or '-',
                     'TER %': f.ter,
                     'Riesgo': f.risk_level,
                     'Rent 1A %': f.return_1y,
                     'Rent 3A %': f.return_3y,
-                    'Vol 1A %': f.volatility_1y,
                 })
 
             df_catalog = pd.DataFrame(data_for_table)
+
+            # =================================================================
+            # PAGINACION
+            # =================================================================
+            ITEMS_PER_PAGE = 10
+            total_items = len(df_catalog)
+            total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+
+            # Inicializar pagina en session_state
+            if 'catalog_page' not in st.session_state:
+                st.session_state.catalog_page = 1
+
+            # Asegurar que la pagina es valida
+            if st.session_state.catalog_page > total_pages:
+                st.session_state.catalog_page = 1
+
+            # Controles de paginacion
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+
+            with col_prev:
+                if st.button("← Anterior", disabled=st.session_state.catalog_page <= 1):
+                    st.session_state.catalog_page -= 1
+                    st.rerun()
+
+            with col_info:
+                st.markdown(
+                    f"<div style='text-align: center; padding: 8px;'>"
+                    f"Pagina <b>{st.session_state.catalog_page}</b> de <b>{total_pages}</b> "
+                    f"({total_items} fondos)"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            with col_next:
+                if st.button("Siguiente →", disabled=st.session_state.catalog_page >= total_pages):
+                    st.session_state.catalog_page += 1
+                    st.rerun()
+
+            # Slice del DataFrame para la pagina actual
+            start_idx = (st.session_state.catalog_page - 1) * ITEMS_PER_PAGE
+            end_idx = start_idx + ITEMS_PER_PAGE
+            df_page = df_catalog.iloc[start_idx:end_idx]
 
             # Tabla con seleccion
             st.markdown("**Selecciona un fondo para ver detalles:**")
 
             selection = st.dataframe(
-                df_catalog,
+                df_page,
                 use_container_width=True,
                 hide_index=True,
-                height=350,
+                height=400,
                 selection_mode="single-row",
                 on_select="rerun",
                 column_config={
+                    "Mi Cat.": st.column_config.TextColumn(width="small"),
                     "TER %": st.column_config.NumberColumn(format="%.2f%%"),
                     "Riesgo": st.column_config.NumberColumn(format="%d/7"),
                     "Rent 1A %": st.column_config.NumberColumn(format="%+.2f%%"),
                     "Rent 3A %": st.column_config.NumberColumn(format="%+.2f%%"),
-                    "Vol 1A %": st.column_config.NumberColumn(format="%.2f%%"),
                 }
             )
 
             # Drill-down cuando hay seleccion
             if selection and selection.selection and selection.selection.rows:
                 selected_idx = selection.selection.rows[0]
-                selected_isin = df_catalog.iloc[selected_idx]['ISIN']
+                selected_isin = df_page.iloc[selected_idx]['ISIN']
 
                 # Obtener fondo completo
                 fund = service.get_fund_by_isin(selected_isin)
@@ -781,7 +856,29 @@ with tab_catalog:
                     # -----------------------------------------------------------------
                     st.divider()
 
-                    col_info, col_actions = st.columns([3, 1])
+                    col_cat, col_info, col_actions = st.columns([1, 2, 1])
+
+                    with col_cat:
+                        st.markdown("**Mi Categoria:**")
+                        # Determinar indice actual
+                        current_cat = fund.custom_category or ""
+                        cat_options = [""] + CUSTOM_CATEGORIES
+                        current_idx = cat_options.index(current_cat) if current_cat in cat_options else 0
+
+                        new_category = st.selectbox(
+                            "Cambiar categoria",
+                            options=cat_options,
+                            index=current_idx,
+                            format_func=lambda x: "Sin categoria" if x == "" else x,
+                            key=f"edit_cat_{fund.isin}",
+                            label_visibility="collapsed"
+                        )
+                        if new_category != current_cat:
+                            fund.custom_category = new_category if new_category else None
+                            service.repository.update(fund)
+                            invalidate_fund_cache()
+                            st.success("Categoria actualizada")
+                            st.rerun()
 
                     with col_info:
                         with st.expander("Ver informacion adicional"):

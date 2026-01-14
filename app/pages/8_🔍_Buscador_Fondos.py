@@ -536,7 +536,9 @@ with tab_catalog:
                                     y=df_returns['Rentabilidad'],
                                     marker_color=colors,
                                     text=[f"{v:+.1f}%" for v in df_returns['Rentabilidad']],
-                                    textposition='outside'
+                                    textposition='inside',
+                                    textfont=dict(size=16, color='white', family='Arial Black'),
+                                    insidetextanchor='middle'
                                 )
                             ])
                             fig_bars.update_layout(
@@ -544,7 +546,8 @@ with tab_catalog:
                                 height=280,
                                 xaxis_title="",
                                 yaxis_title="Rentabilidad %",
-                                showlegend=False
+                                showlegend=False,
+                                bargap=0.3
                             )
                             fig_bars.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
                             st.plotly_chart(fig_bars, use_container_width=True)
@@ -583,27 +586,34 @@ with tab_catalog:
                     col_tree, col_donuts = st.columns([1, 1])
 
                     with col_tree:
-                        st.markdown("**Top 10 Holdings (Treemap)**")
+                        st.markdown("**Top Holdings por Sector**")
                         if holdings and len(holdings) > 0:
                             df_holdings = pd.DataFrame(holdings)
                             if 'name' in df_holdings.columns and 'weight' in df_holdings.columns:
-                                # Crear treemap
+                                # Asegurar que sector existe, si no poner "Otros"
+                                if 'sector' not in df_holdings.columns:
+                                    df_holdings['sector'] = 'Otros'
+                                df_holdings['sector'] = df_holdings['sector'].fillna('Otros')
+                                df_holdings['sector'] = df_holdings['sector'].replace('', 'Otros')
+
+                                # Crear treemap agrupado por sector
                                 fig_tree = px.treemap(
                                     df_holdings,
-                                    path=['name'],
+                                    path=['sector', 'name'],
                                     values='weight',
-                                    color='weight',
-                                    color_continuous_scale='Blues',
-                                    hover_data={'weight': ':.2f'}
+                                    color='sector',
+                                    color_discrete_sequence=px.colors.qualitative.Set2,
+                                    hover_data={'weight': ':.2f%'}
                                 )
                                 fig_tree.update_layout(
                                     margin=dict(t=10, b=10, l=10, r=10),
-                                    height=320,
+                                    height=350,
                                     coloraxis_showscale=False
                                 )
                                 fig_tree.update_traces(
                                     textinfo='label+percent entry',
-                                    textfont_size=11
+                                    textfont_size=12,
+                                    marker=dict(cornerradius=3)
                                 )
                                 st.plotly_chart(fig_tree, use_container_width=True)
                                 st.caption("*Limitado a Top 10 por API de Morningstar")
@@ -617,55 +627,83 @@ with tab_catalog:
                         sectors = allocation.get('sectors', []) if isinstance(allocation, dict) else []
                         countries = allocation.get('countries', []) if isinstance(allocation, dict) else []
 
-                        sub1, sub2 = st.columns(2)
+                        # --- DONUT SECTORES ---
+                        st.markdown("**Sectores**")
+                        if sectors and len(sectors) > 0:
+                            df_sec = pd.DataFrame(sectors[:8])
+                            if 'name' in df_sec.columns and 'weight' in df_sec.columns:
+                                # Crear etiquetas personalizadas: "Nombre XX.X%"
+                                # Ocultar etiquetas para valores < 5%
+                                labels_sec = []
+                                for _, row in df_sec.iterrows():
+                                    if row['weight'] >= 5:
+                                        labels_sec.append(f"{row['name']} {row['weight']:.1f}%")
+                                    else:
+                                        labels_sec.append('')
 
-                        with sub1:
-                            st.markdown("**Sectores**")
-                            if sectors and len(sectors) > 0:
-                                df_sec = pd.DataFrame(sectors[:8])
-                                if 'name' in df_sec.columns and 'weight' in df_sec.columns:
-                                    fig_sec = px.pie(
-                                        df_sec,
-                                        values='weight',
-                                        names='name',
-                                        hole=0.5,
-                                        color_discrete_sequence=px.colors.qualitative.Set3
-                                    )
-                                    fig_sec.update_layout(
-                                        margin=dict(t=5, b=5, l=5, r=5),
-                                        height=150,
-                                        showlegend=False
-                                    )
-                                    fig_sec.update_traces(textposition='inside', textinfo='percent')
-                                    st.plotly_chart(fig_sec, use_container_width=True)
-                                else:
-                                    st.caption("Formato invalido")
+                                fig_sec = go.Figure(data=[go.Pie(
+                                    labels=df_sec['name'],
+                                    values=df_sec['weight'],
+                                    hole=0.45,
+                                    text=labels_sec,
+                                    textposition='outside',
+                                    textinfo='text',
+                                    textfont=dict(size=11, family='Arial'),
+                                    insidetextorientation='horizontal',
+                                    marker=dict(colors=px.colors.qualitative.Set2),
+                                    hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
+                                )])
+                                fig_sec.update_layout(
+                                    margin=dict(t=20, b=20, l=20, r=20),
+                                    height=180,
+                                    showlegend=False,
+                                    uniformtext_minsize=10,
+                                    uniformtext_mode='hide'
+                                )
+                                st.plotly_chart(fig_sec, use_container_width=True)
                             else:
-                                st.caption("Sin datos")
+                                st.caption("Formato invalido")
+                        else:
+                            st.caption("Sin datos de sectores")
 
-                        with sub2:
-                            st.markdown("**Paises**")
-                            if countries and len(countries) > 0:
-                                df_cty = pd.DataFrame(countries[:8])
-                                if 'name' in df_cty.columns and 'weight' in df_cty.columns:
-                                    fig_cty = px.pie(
-                                        df_cty,
-                                        values='weight',
-                                        names='name',
-                                        hole=0.5,
-                                        color_discrete_sequence=px.colors.qualitative.Pastel
-                                    )
-                                    fig_cty.update_layout(
-                                        margin=dict(t=5, b=5, l=5, r=5),
-                                        height=150,
-                                        showlegend=False
-                                    )
-                                    fig_cty.update_traces(textposition='inside', textinfo='percent')
-                                    st.plotly_chart(fig_cty, use_container_width=True)
-                                else:
-                                    st.caption("Formato invalido")
+                        # --- DONUT PAISES ---
+                        st.markdown("**Paises**")
+                        if countries and len(countries) > 0:
+                            df_cty = pd.DataFrame(countries[:8])
+                            if 'name' in df_cty.columns and 'weight' in df_cty.columns:
+                                # Crear etiquetas personalizadas: "Nombre XX.X%"
+                                # Ocultar etiquetas para valores < 5%
+                                labels_cty = []
+                                for _, row in df_cty.iterrows():
+                                    if row['weight'] >= 5:
+                                        labels_cty.append(f"{row['name']} {row['weight']:.1f}%")
+                                    else:
+                                        labels_cty.append('')
+
+                                fig_cty = go.Figure(data=[go.Pie(
+                                    labels=df_cty['name'],
+                                    values=df_cty['weight'],
+                                    hole=0.45,
+                                    text=labels_cty,
+                                    textposition='outside',
+                                    textinfo='text',
+                                    textfont=dict(size=11, family='Arial'),
+                                    insidetextorientation='horizontal',
+                                    marker=dict(colors=px.colors.qualitative.Pastel),
+                                    hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
+                                )])
+                                fig_cty.update_layout(
+                                    margin=dict(t=20, b=20, l=20, r=20),
+                                    height=180,
+                                    showlegend=False,
+                                    uniformtext_minsize=10,
+                                    uniformtext_mode='hide'
+                                )
+                                st.plotly_chart(fig_cty, use_container_width=True)
                             else:
-                                st.caption("Sin datos")
+                                st.caption("Formato invalido")
+                        else:
+                            st.caption("Sin datos de paises")
 
                         # Tabla resumen debajo de los donuts
                         st.markdown("**Desglose detallado**")

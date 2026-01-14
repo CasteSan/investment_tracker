@@ -38,25 +38,61 @@ def render_login_page() -> bool:
         initial_sidebar_state="collapsed"
     )
 
-    # CSS para ocultar completamente el sidebar y la navegacion
+    # CSS para ocultar COMPLETAMENTE el sidebar y toda la navegacion
     st.markdown("""
         <style>
-            /* Ocultar sidebar completo */
-            [data-testid="stSidebar"] {
-                display: none;
+            /* Ocultar sidebar completo y todos sus hijos */
+            [data-testid="stSidebar"],
+            [data-testid="stSidebarNav"],
+            [data-testid="stSidebarNavItems"],
+            [data-testid="stSidebarNavLink"],
+            [data-testid="stSidebarNavSeparator"],
+            section[data-testid="stSidebar"],
+            div[data-testid="stSidebarNav"] {
+                display: none !important;
+                visibility: hidden !important;
+                width: 0 !important;
+                min-width: 0 !important;
+                max-width: 0 !important;
             }
-            /* Ocultar boton de expandir sidebar */
-            [data-testid="collapsedControl"] {
-                display: none;
+
+            /* Ocultar boton de expandir/colapsar sidebar */
+            [data-testid="collapsedControl"],
+            button[kind="header"],
+            .st-emotion-cache-eczf16,
+            .st-emotion-cache-1egp75f {
+                display: none !important;
+                visibility: hidden !important;
             }
-            /* Ocultar navegacion de paginas en header */
-            [data-testid="stSidebarNavItems"] {
-                display: none;
+
+            /* Ocultar navegacion superior si existe */
+            header[data-testid="stHeader"] button,
+            .stDeployButton {
+                display: none !important;
             }
-            /* Centrar contenido */
-            .block-container {
-                max-width: 400px;
-                padding-top: 5rem;
+
+            /* Ocultar cualquier elemento de navegacion */
+            nav,
+            [role="navigation"],
+            .st-emotion-cache-1rtdyuf,
+            .st-emotion-cache-6qob1r {
+                display: none !important;
+            }
+
+            /* Asegurar que el contenido principal ocupe todo */
+            .main .block-container {
+                max-width: 450px !important;
+                padding-top: 3rem !important;
+                margin: 0 auto !important;
+            }
+
+            /* Forzar ancho completo sin sidebar */
+            [data-testid="stAppViewContainer"] {
+                margin-left: 0 !important;
+            }
+
+            section.main {
+                margin-left: 0 !important;
             }
         </style>
     """, unsafe_allow_html=True)

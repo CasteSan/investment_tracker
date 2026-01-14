@@ -6,6 +6,59 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/en/1.0.0
 
 ---
 
+## [1.3.0] - 2026-01-14
+
+### Added
+
+- **Catalogo Inteligente de Fondos con Morningstar**
+  - Importar fondos por ISIN desde Morningstar API (`mstarpy`)
+  - Vista previa de datos antes de guardar
+  - Dashboard profesional por fondo con graficos interactivos
+  - Boton "Actualizar datos" para refrescar desde Morningstar
+
+- **Dashboard de Fondo**
+  - Grafico NAV con rentabilidad del periodo y zoom interactivo
+  - Barras de rentabilidad por periodo (YTD, 1A, 3A, 5A) con colores
+  - Treemap de holdings agrupado por sector
+  - Donuts de sectores y paises con etiquetas externas
+  - KPIs: ISIN, categoria, TER, riesgo SRRI, rentabilidad YTD
+
+- **Categorias Personalizadas Dinamicas**
+  - Nueva tabla `categories` en base de datos
+  - Crear categorias desde la UI (importar y editar)
+  - Filtro por categoria en catalogo (pills horizontales)
+  - 10 categorias por defecto: RV Global, RV USA, RF Corto Plazo, etc.
+
+- **Paginacion de Catalogo**
+  - 10 fondos por pagina
+  - Controles Anterior/Siguiente
+  - Indicador de pagina actual
+
+- **Providers** (`src/providers/`)
+  - `FundDataProvider` para Morningstar
+  - Extraccion de: datos basicos, rentabilidades, volatilidad, holdings, sectores, paises
+  - Conversion de rentabilidades acumuladas a anualizadas
+
+### Changed
+
+- `FundService` ampliado con gestion de categorias
+- `FundRepository.upsert_from_provider()` para mapeo de datos Morningstar
+- Migraciones actualizadas para soportar multi-portfolio
+
+### Fixed
+
+- Grafico NAV con manejo defensivo de errores 401 de API
+- Parseo robusto de JSON para sectores/paises
+- Cache invalidation incluye categorias
+
+### Technical
+
+- `scripts/apply_migrations.py` - Script de migraciones multi-BD
+- Campos JSON en modelo Fund: `top_holdings`, `asset_allocation`
+- Fuentes XXL (16-22px) para mejor legibilidad
+
+---
+
 ## [1.2.0] - 2026-01-13
 
 ### Added

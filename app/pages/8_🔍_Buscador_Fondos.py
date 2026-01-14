@@ -395,169 +395,266 @@ with tab_catalog:
 
                 if fund:
                     st.divider()
-                    st.markdown(f"### {fund.name}")
 
-                    # Info y metricas
-                    col_info, col_metrics = st.columns(2)
+                    # =================================================================
+                    # DASHBOARD DEL FONDO
+                    # =================================================================
 
-                    with col_info:
-                        st.markdown("**Informacion**")
-                        st.write(f"**ISIN:** {fund.isin}")
-                        st.write(f"**Gestora:** {fund.manager or '-'}")
-                        st.write(f"**Domicilio:** {fund.fund_domicile or '-'}")
-                        st.write(f"**Divisa:** {fund.currency or 'EUR'}")
-                        st.write(f"**Benchmark:** {fund.benchmark_name or '-'}")
+                    # Titulo con nombre
+                    st.markdown(f"## 📊 {fund.name}")
 
-                        if fund.url:
-                            st.markdown(f"[Ver en Morningstar]({fund.url})")
+                    # -----------------------------------------------------------------
+                    # FILA 1: KPIs
+                    # -----------------------------------------------------------------
+                    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
-                    with col_metrics:
-                        st.markdown("**Metricas de Riesgo**")
+                    with kpi1:
+                        st.metric("ISIN", fund.isin)
+                    with kpi2:
+                        st.metric("Categoria", fund.morningstar_category or fund.category or "-")
+                    with kpi3:
+                        ter_val = f"{fund.ter:.2f}%" if fund.ter else "-"
+                        st.metric("TER", ter_val)
+                    with kpi4:
+                        risk_val = f"{fund.risk_level}/7" if fund.risk_level else "-"
+                        st.metric("Riesgo SRRI", risk_val)
+                    with kpi5:
+                        ytd = fund.return_ytd
+                        if ytd is not None:
+                            delta_color = "normal" if ytd >= 0 else "inverse"
+                            st.metric("Rent. YTD", f"{ytd:+.2f}%", delta=f"{ytd:+.2f}%", delta_color=delta_color)
+                        else:
+                            st.metric("Rent. YTD", "-")
 
-                        metrics_data = {
-                            'Periodo': ['1 Ano', '3 Anos', '5 Anos'],
-                            'Rentabilidad': [
-                                f"{fund.return_1y:+.2f}%" if fund.return_1y else '-',
-                                f"{fund.return_3y:+.2f}%" if fund.return_3y else '-',
-                                f"{fund.return_5y:+.2f}%" if fund.return_5y else '-',
-                            ],
-                            'Volatilidad': [
-                                f"{fund.volatility_1y:.2f}%" if fund.volatility_1y else '-',
-                                f"{fund.volatility_3y:.2f}%" if fund.volatility_3y else '-',
-                                f"{fund.volatility_5y:.2f}%" if fund.volatility_5y else '-',
-                            ],
-                            'Sharpe': [
-                                f"{fund.sharpe_1y:.2f}" if fund.sharpe_1y else '-',
-                                f"{fund.sharpe_3y:.2f}" if fund.sharpe_3y else '-',
-                                f"{fund.sharpe_5y:.2f}" if fund.sharpe_5y else '-',
-                            ],
-                        }
-                        st.dataframe(
-                            pd.DataFrame(metrics_data),
-                            hide_index=True,
-                            use_container_width=True
-                        )
+                    st.divider()
 
-                    # Graficos - Fila 1: Sectores y Paises
+                    # -----------------------------------------------------------------
+                    # FILA 2: Grafico NAV + Barras Rentabilidad
+                    # -----------------------------------------------------------------
+                    col_nav, col_bars = st.columns(2)
+
+                    with col_nav:
+                        st.markdown("**Evolucion NAV (3 anos)**")
+                        # Obtener historico NAV
+                        try:
+                            nav_df = service.get_fund_nav_history(fund.isin, years=3)
+                            if not nav_df.empty:
+                                fig_nav = go.Figure()
+                                fig_nav.add_trace(go.Scatter(
+                                    x=nav_df['date'],
+                                    y=nav_df['nav'],
+                                    mode='lines',
+                                    fill='tozeroy',
+                                    fillcolor='rgba(0, 123, 255, 0.1)',
+                                    line=dict(color='#007bff', width=2),
+                                    name='NAV'
+                                ))
+                                fig_nav.update_layout(
+                                    margin=dict(t=10, b=40, l=50, r=10),
+                                    height=280,
+                                    xaxis_title="",
+                                    yaxis_title="NAV",
+                                    showlegend=False,
+                                    hovermode='x unified'
+                                )
+                                st.plotly_chart(fig_nav, use_container_width=True)
+                            else:
+                                st.info("Sin datos de NAV historico")
+                        except Exception:
+                            st.info("Sin datos de NAV historico")
+
+                    with col_bars:
+                        st.markdown("**Rentabilidad por Periodo**")
+                        # Preparar datos de rentabilidad
+                        returns_data = []
+                        periods = [
+                            ('1M', fund.return_ytd),  # Usamos YTD como proxy si no hay 1M
+                            ('3M', None),
+                            ('YTD', fund.return_ytd),
+                            ('1A', fund.return_1y),
+                            ('3A', fund.return_3y),
+                            ('5A', fund.return_5y),
+                        ]
+
+                        # Intentar obtener datos frescos del provider
+                        try:
+                            fresh_data = service.fetch_fund_preview(fund.isin)
+                            periods = [
+                                ('1M', fresh_data.get('return_1m')),
+                                ('3M', fresh_data.get('return_3m')),
+                                ('YTD', fresh_data.get('return_ytd')),
+                                ('1A', fresh_data.get('return_1y')),
+                                ('3A', fresh_data.get('return_3y')),
+                                ('5A', fresh_data.get('return_5y')),
+                            ]
+                        except Exception:
+                            pass
+
+                        for label, val in periods:
+                            if val is not None:
+                                returns_data.append({
+                                    'Periodo': label,
+                                    'Rentabilidad': val,
+                                    'Color': 'green' if val >= 0 else 'red'
+                                })
+
+                        if returns_data:
+                            df_returns = pd.DataFrame(returns_data)
+                            colors = ['#28a745' if v >= 0 else '#dc3545' for v in df_returns['Rentabilidad']]
+
+                            fig_bars = go.Figure(data=[
+                                go.Bar(
+                                    x=df_returns['Periodo'],
+                                    y=df_returns['Rentabilidad'],
+                                    marker_color=colors,
+                                    text=[f"{v:+.1f}%" for v in df_returns['Rentabilidad']],
+                                    textposition='outside'
+                                )
+                            ])
+                            fig_bars.update_layout(
+                                margin=dict(t=30, b=40, l=50, r=10),
+                                height=280,
+                                xaxis_title="",
+                                yaxis_title="Rentabilidad %",
+                                showlegend=False
+                            )
+                            fig_bars.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
+                            st.plotly_chart(fig_bars, use_container_width=True)
+                        else:
+                            st.info("Sin datos de rentabilidad")
+
+                    st.divider()
+
+                    # -----------------------------------------------------------------
+                    # FILA 3: Treemap Holdings + Donuts Sector/Pais
+                    # -----------------------------------------------------------------
                     allocation = fund.get_asset_allocation()
+                    holdings = fund.get_top_holdings()
 
-                    col_sec, col_cty = st.columns(2)
+                    col_tree, col_donuts = st.columns([1, 1])
 
-                    with col_sec:
-                        sectors = allocation.get('sectors', []) if allocation else []
-                        if sectors:
-                            st.markdown("**Sectores**")
-                            df_sec = pd.DataFrame(sectors)
-                            fig = px.pie(
-                                df_sec,
-                                values='weight',
-                                names='name',
-                                hole=0.4,
-                                color_discrete_sequence=px.colors.qualitative.Pastel
-                            )
-                            fig.update_layout(
-                                margin=dict(t=10, b=10, l=10, r=10),
-                                height=250,
-                                legend=dict(orientation="h", yanchor="bottom", y=-0.25, font=dict(size=9))
-                            )
-                            fig.update_traces(textposition='inside', textinfo='percent')
-                            st.plotly_chart(fig, use_container_width=True)
-                        else:
-                            st.info("Sin datos de sectores")
-
-                    with col_cty:
-                        countries = allocation.get('countries', []) if allocation else []
-                        if countries:
-                            st.markdown("**Paises (Top 10)**")
-                            df_cty = pd.DataFrame(countries[:10])
-                            fig = px.bar(
-                                df_cty,
-                                x='weight',
-                                y='name',
-                                orientation='h',
-                                color='weight',
-                                color_continuous_scale='Greens'
-                            )
-                            fig.update_layout(
-                                margin=dict(t=10, b=10, l=10, r=10),
-                                height=250,
-                                xaxis_title="Peso %",
-                                yaxis_title="",
-                                showlegend=False,
-                                coloraxis_showscale=False
-                            )
-                            fig.update_yaxes(autorange="reversed")
-                            st.plotly_chart(fig, use_container_width=True)
-                        else:
-                            st.info("Sin datos de paises")
-
-                    # Graficos - Fila 2: Asset Allocation y Holdings
-                    col_chart1, col_chart2 = st.columns(2)
-
-                    with col_chart1:
-                        if allocation:
-                            st.markdown("**Asset Allocation**")
-                            alloc_data = []
-                            labels = {
-                                'us_equity': 'RV USA',
-                                'non_us_equity': 'RV Internacional',
-                                'bond': 'Renta Fija',
-                                'cash': 'Efectivo',
-                                'other': 'Otros'
-                            }
-                            for key, label in labels.items():
-                                val = allocation.get(key, 0)
-                                if val > 0.1:
-                                    alloc_data.append({'Tipo': label, 'Peso': val})
-
-                            if alloc_data:
-                                fig = px.pie(
-                                    pd.DataFrame(alloc_data),
-                                    values='Peso',
-                                    names='Tipo',
-                                    hole=0.4,
-                                    color_discrete_sequence=px.colors.qualitative.Set2
-                                )
-                                fig.update_layout(
-                                    margin=dict(t=10, b=10, l=10, r=10),
-                                    height=250,
-                                    legend=dict(orientation="h", yanchor="bottom", y=-0.15)
-                                )
-                                st.plotly_chart(fig, use_container_width=True)
-                        else:
-                            st.info("Sin datos de allocation")
-
-                    with col_chart2:
-                        holdings = fund.get_top_holdings()
+                    with col_tree:
+                        st.markdown("**Top 10 Holdings (Treemap)**")
                         if holdings:
-                            st.markdown("**Top 10 Holdings**")
                             df_holdings = pd.DataFrame(holdings)
-                            fig = px.bar(
-                                df_holdings.head(10),
-                                x='weight',
-                                y='name',
-                                orientation='h',
+                            # Crear treemap
+                            fig_tree = px.treemap(
+                                df_holdings,
+                                path=['name'],
+                                values='weight',
                                 color='weight',
-                                color_continuous_scale='Blues'
+                                color_continuous_scale='Blues',
+                                hover_data={'weight': ':.2f'}
                             )
-                            fig.update_layout(
+                            fig_tree.update_layout(
                                 margin=dict(t=10, b=10, l=10, r=10),
-                                height=250,
-                                xaxis_title="Peso %",
-                                yaxis_title="",
-                                showlegend=False,
+                                height=320,
                                 coloraxis_showscale=False
                             )
-                            fig.update_yaxes(autorange="reversed")
-                            st.plotly_chart(fig, use_container_width=True)
+                            fig_tree.update_traces(
+                                textinfo='label+percent entry',
+                                textfont_size=11
+                            )
+                            st.plotly_chart(fig_tree, use_container_width=True)
+                            st.caption("*Limitado a Top 10 por API de Morningstar")
                         else:
                             st.info("Sin datos de holdings")
 
-                    # Boton eliminar
+                    with col_donuts:
+                        # Dos donuts: Sector y Pais
+                        sectors = allocation.get('sectors', []) if allocation else []
+                        countries = allocation.get('countries', []) if allocation else []
+
+                        sub1, sub2 = st.columns(2)
+
+                        with sub1:
+                            st.markdown("**Sectores**")
+                            if sectors:
+                                df_sec = pd.DataFrame(sectors[:8])
+                                fig_sec = px.pie(
+                                    df_sec,
+                                    values='weight',
+                                    names='name',
+                                    hole=0.5,
+                                    color_discrete_sequence=px.colors.qualitative.Set3
+                                )
+                                fig_sec.update_layout(
+                                    margin=dict(t=5, b=5, l=5, r=5),
+                                    height=150,
+                                    showlegend=False
+                                )
+                                fig_sec.update_traces(textposition='inside', textinfo='percent')
+                                st.plotly_chart(fig_sec, use_container_width=True)
+                            else:
+                                st.info("Sin datos")
+
+                        with sub2:
+                            st.markdown("**Paises**")
+                            if countries:
+                                df_cty = pd.DataFrame(countries[:8])
+                                fig_cty = px.pie(
+                                    df_cty,
+                                    values='weight',
+                                    names='name',
+                                    hole=0.5,
+                                    color_discrete_sequence=px.colors.qualitative.Pastel
+                                )
+                                fig_cty.update_layout(
+                                    margin=dict(t=5, b=5, l=5, r=5),
+                                    height=150,
+                                    showlegend=False
+                                )
+                                fig_cty.update_traces(textposition='inside', textinfo='percent')
+                                st.plotly_chart(fig_cty, use_container_width=True)
+                            else:
+                                st.info("Sin datos")
+
+                        # Tabla resumen debajo de los donuts
+                        st.markdown("**Desglose detallado**")
+                        tab_sec, tab_cty = st.tabs(["Sectores", "Paises"])
+
+                        with tab_sec:
+                            if sectors:
+                                df_sec_table = pd.DataFrame(sectors)
+                                df_sec_table['weight'] = df_sec_table['weight'].apply(lambda x: f"{x:.2f}%")
+                                df_sec_table.columns = ['Sector', 'Peso']
+                                st.dataframe(df_sec_table, hide_index=True, height=150)
+
+                        with tab_cty:
+                            if countries:
+                                df_cty_table = pd.DataFrame(countries[:10])
+                                df_cty_table['weight'] = df_cty_table['weight'].apply(lambda x: f"{x:.2f}%")
+                                df_cty_table.columns = ['Pais', 'Peso']
+                                st.dataframe(df_cty_table, hide_index=True, height=150)
+
+                    # -----------------------------------------------------------------
+                    # INFO ADICIONAL + ACCIONES
+                    # -----------------------------------------------------------------
                     st.divider()
-                    col_del, col_space = st.columns([1, 4])
-                    with col_del:
-                        if st.button("🗑️ Eliminar del catalogo", type="secondary"):
+
+                    col_info, col_actions = st.columns([3, 1])
+
+                    with col_info:
+                        with st.expander("Ver informacion adicional"):
+                            info_col1, info_col2, info_col3 = st.columns(3)
+                            with info_col1:
+                                st.write(f"**Gestora:** {fund.manager or '-'}")
+                                st.write(f"**Domicilio:** {fund.fund_domicile or '-'}")
+                                st.write(f"**Divisa:** {fund.currency or 'EUR'}")
+                            with info_col2:
+                                st.write(f"**Benchmark:** {fund.benchmark_name or '-'}")
+                                st.write(f"**AUM:** {fund.aum:,.0f}M EUR" if fund.aum else "**AUM:** -")
+                                st.write(f"**Distribucion:** {fund.distribution_policy or '-'}")
+                            with info_col3:
+                                st.write(f"**Vol 1A:** {fund.volatility_1y:.2f}%" if fund.volatility_1y else "**Vol 1A:** -")
+                                st.write(f"**Vol 3A:** {fund.volatility_3y:.2f}%" if fund.volatility_3y else "**Vol 3A:** -")
+                                st.write(f"**Sharpe 1A:** {fund.sharpe_1y:.2f}" if fund.sharpe_1y else "**Sharpe 1A:** -")
+
+                            if fund.url:
+                                st.markdown(f"[🔗 Ver ficha en Morningstar]({fund.url})")
+
+                    with col_actions:
+                        if st.button("🗑️ Eliminar", type="secondary", use_container_width=True):
                             service.repository.delete_by_isin(fund.isin)
                             st.success(f"Fondo {fund.isin} eliminado")
                             st.rerun()

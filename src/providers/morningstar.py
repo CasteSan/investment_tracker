@@ -281,7 +281,7 @@ class FundDataProvider:
         Extrae datos de rentabilidad.
 
         IMPORTANTE: Los valores de trailingReturn son ACUMULADOS.
-        - 1Y: Ya es anualizado por naturaleza
+        - Periodos cortos (1D, 1W, 1M, 3M, 6M, YTD, 1Y): ya son "anualizados" o directos
         - 3Y, 5Y, 10Y: Convertimos de acumulado a anualizado
         """
         data = {}
@@ -301,7 +301,11 @@ class FundDataProvider:
                     return float(val) if val else None
                 return None
 
-            # YTD y 1Y son directos (ya anualizados)
+            # Periodos cortos (valores directos)
+            data['return_1d'] = get_return('1Day')
+            data['return_1w'] = get_return('1Week')
+            data['return_1m'] = get_return('1Month')
+            data['return_3m'] = get_return('3Month')
             data['return_ytd'] = get_return('YearToDate')
             data['return_1y'] = get_return('1Year')
 

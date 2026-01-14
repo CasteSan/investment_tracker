@@ -1,30 +1,23 @@
 """
-Investment Tracker - Aplicación Streamlit
-Sesión 7 del Investment Tracker (actualizado v1.1 - Multi-Cartera)
+Investment Tracker - Aplicacion Streamlit
+Sesion 7 del Investment Tracker (actualizado v1.2 - Cloud Ready)
 
 Ejecutar: streamlit run app/main.py
+
+Cloud Migration - Fase 5:
+- Autenticacion en modo cloud
+- UI adaptativa segun entorno (local/cloud)
 """
 
 import streamlit as st
 import sys
 from pathlib import Path
 
-# Añadir el directorio raíz al path para importar módulos
+# Anadir el directorio raiz al path para importar modulos
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-# Configuración de la página (DEBE ser lo primero)
-st.set_page_config(
-    page_title="Mi Cartera Personal",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'About': "Investment Tracker - Sistema de Gestión de Cartera Personal"
-    }
-)
-
-# Importar módulos del proyecto
+# Importar modulos del proyecto
 try:
     from src.portfolio import Portfolio
     from src.database import Database
@@ -32,10 +25,33 @@ try:
     from src.dividends import DividendManager
     from src.benchmarks import BenchmarkComparator, YFINANCE_AVAILABLE
     from src.core.profile_manager import ProfileManager, get_profile_manager
+    from src.core.environment import is_cloud_environment
+    from app.components.auth import (
+        check_authentication,
+        render_user_info,
+        init_session_state
+    )
+    from src.services.auth_service import AuthService
     MODULES_AVAILABLE = True
 except ImportError as e:
     MODULES_AVAILABLE = False
     IMPORT_ERROR = str(e)
+
+# Configuracion de la pagina (DEBE ser lo primero que usa st.)
+# En modo cloud con login pendiente, se configura en render_login_page()
+if MODULES_AVAILABLE and is_cloud_environment() and not st.session_state.get('authenticated', False):
+    # No configurar aqui - lo hara render_login_page()
+    pass
+else:
+    st.set_page_config(
+        page_title="Mi Cartera Personal",
+        page_icon="📊",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        menu_items={
+            'About': "Investment Tracker - Sistema de Gestion de Cartera Personal"
+        }
+    )
 
 # CSS personalizado
 st.markdown("""
@@ -72,94 +88,124 @@ st.markdown("""
 
 
 def main():
-    """Página principal de la aplicación"""
-    
-    # Título principal
-    st.markdown('<p class="main-title">📊 Mi Cartera Personal</p>', unsafe_allow_html=True)
-    
-    # Verificar que los módulos están disponibles
+    """Pagina principal de la aplicacion"""
+
+    # Verificar que los modulos estan disponibles
     if not MODULES_AVAILABLE:
-        st.error(f"❌ Error importando módulos: {IMPORT_ERROR}")
-        st.info("Asegúrate de que todos los módulos están en la carpeta `src/`")
+        st.error(f"Error importando modulos: {IMPORT_ERROR}")
+        st.info("Asegurate de que todos los modulos estan en la carpeta `src/`")
         return
-    
-    # Sidebar - Configuración global
+
+    # Inicializar session_state
+    init_session_state()
+
+    # =================================================================
+    # AUTENTICACION (solo en modo cloud)
+    # =================================================================
+    if not check_authentication():
+        st.stop()
+
+    # Titulo principal
+    st.markdown('<p class="main-title">Mi Cartera Personal</p>', unsafe_allow_html=True)
+
+    # Sidebar - Configuracion global
     with st.sidebar:
         # =================================================================
-        # SELECTOR DE CARTERA (Multi-Portfolio)
+        # SELECTOR DE CARTERA (adaptativo segun entorno)
         # =================================================================
-        st.header("💼 Cartera")
+        st.header("Cartera")
 
-        profile_manager = get_profile_manager()
-        profiles = profile_manager.get_profile_names()
+        # Obtener ProfileManager segun entorno
+        profile_manager = get_profile_manager(st.session_state)
 
-        # Si no hay perfiles, crear uno por defecto
-        if not profiles:
-            profile_manager.create_profile('Principal')
+        # Comportamiento diferente segun modo
+        if profile_manager.can_switch_portfolio():
+            # =============================================================
+            # MODO LOCAL: Selector de cartera completo
+            # =============================================================
             profiles = profile_manager.get_profile_names()
 
-        # Inicializar session_state si no existe
-        if 'current_profile' not in st.session_state:
-            st.session_state['current_profile'] = profile_manager.get_default_profile()
+            # Si no hay perfiles, crear uno por defecto
+            if not profiles:
+                profile_manager.create_profile('Principal')
+                profiles = profile_manager.get_profile_names()
 
-        # Selector de cartera
-        selected_profile = st.selectbox(
-            "Seleccionar cartera",
-            profiles,
-            index=profiles.index(st.session_state['current_profile']) if st.session_state['current_profile'] in profiles else 0,
-            key="profile_selector"
-        )
+            # Inicializar session_state si no existe
+            if 'current_profile' not in st.session_state:
+                st.session_state['current_profile'] = profile_manager.get_default_profile()
 
-        # Detectar cambio de cartera
-        if selected_profile != st.session_state.get('current_profile'):
-            st.session_state['current_profile'] = selected_profile
-            st.rerun()
-
-        # Obtener db_path para la cartera seleccionada
-        current_db_path = profile_manager.get_db_path(selected_profile)
-        st.session_state['db_path'] = current_db_path
-
-        # Botón para crear nueva cartera
-        with st.expander("➕ Nueva cartera"):
-            new_profile_name = st.text_input("Nombre", key="new_profile_name")
-            if st.button("Crear", key="create_profile_btn"):
-                if new_profile_name:
-                    try:
-                        profile_manager.create_profile(new_profile_name)
-                        st.session_state['current_profile'] = new_profile_name
-                        st.success(f"Cartera '{new_profile_name}' creada")
-                        st.rerun()
-                    except ValueError as e:
-                        st.error(str(e))
-                else:
-                    st.warning("Introduce un nombre")
-
-        # Configuración de la cartera actual
-        with st.expander("⚙️ Configuración cartera"):
-            st.caption(f"Cartera actual: **{selected_profile}**")
-
-            # Renombrar cartera
-            rename_name = st.text_input(
-                "Nuevo nombre",
-                key="rename_profile_name",
-                placeholder=selected_profile
+            # Selector de cartera
+            selected_profile = st.selectbox(
+                "Seleccionar cartera",
+                profiles,
+                index=profiles.index(st.session_state['current_profile']) if st.session_state['current_profile'] in profiles else 0,
+                key="profile_selector"
             )
-            if st.button("Renombrar", key="rename_profile_btn"):
-                if rename_name and rename_name != selected_profile:
-                    try:
-                        # Renombrar y obtener el nombre sanitizado
-                        clean_name = profile_manager.rename_profile(selected_profile, rename_name)
-                        st.session_state['current_profile'] = clean_name
-                        st.success(f"Cartera renombrada a '{clean_name}'")
-                        st.rerun()
-                    except PermissionError:
-                        st.error("No se puede renombrar: archivo en uso. Cierra otras pestañas y reintenta.")
-                    except ValueError as e:
-                        st.error(str(e))
-                elif rename_name == selected_profile:
-                    st.info("El nombre es el mismo")
-                else:
-                    st.warning("Introduce un nuevo nombre")
+
+            # Detectar cambio de cartera
+            if selected_profile != st.session_state.get('current_profile'):
+                st.session_state['current_profile'] = selected_profile
+                st.rerun()
+
+            # Obtener db_path para la cartera seleccionada
+            current_db_path = profile_manager.get_db_path(selected_profile)
+            st.session_state['db_path'] = current_db_path
+
+            # Boton para crear nueva cartera
+            with st.expander("Nueva cartera"):
+                new_profile_name = st.text_input("Nombre", key="new_profile_name")
+                if st.button("Crear", key="create_profile_btn"):
+                    if new_profile_name:
+                        try:
+                            profile_manager.create_profile(new_profile_name)
+                            st.session_state['current_profile'] = new_profile_name
+                            st.success(f"Cartera '{new_profile_name}' creada")
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(str(e))
+                    else:
+                        st.warning("Introduce un nombre")
+
+            # Configuracion de la cartera actual
+            with st.expander("Configuracion cartera"):
+                st.caption(f"Cartera actual: **{selected_profile}**")
+
+                # Renombrar cartera
+                rename_name = st.text_input(
+                    "Nuevo nombre",
+                    key="rename_profile_name",
+                    placeholder=selected_profile
+                )
+                if st.button("Renombrar", key="rename_profile_btn"):
+                    if rename_name and rename_name != selected_profile:
+                        try:
+                            clean_name = profile_manager.rename_profile(selected_profile, rename_name)
+                            st.session_state['current_profile'] = clean_name
+                            st.success(f"Cartera renombrada a '{clean_name}'")
+                            st.rerun()
+                        except PermissionError:
+                            st.error("No se puede renombrar: archivo en uso.")
+                        except ValueError as e:
+                            st.error(str(e))
+                    elif rename_name == selected_profile:
+                        st.info("El nombre es el mismo")
+                    else:
+                        st.warning("Introduce un nuevo nombre")
+        else:
+            # =============================================================
+            # MODO CLOUD: Mostrar solo info de la cartera asignada
+            # =============================================================
+            portfolio_name = profile_manager.get_portfolio_name()
+            st.info(f"Cartera: {portfolio_name}")
+
+            # Obtener db_path (en cloud es 'cloud:portfolio_id')
+            current_db_path = profile_manager.get_db_path()
+            st.session_state['db_path'] = current_db_path
+            st.session_state['current_profile'] = portfolio_name
+            selected_profile = portfolio_name
+
+            # Mostrar info del usuario y boton de logout
+            render_user_info()
 
         st.divider()
 

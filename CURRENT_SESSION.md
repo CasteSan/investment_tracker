@@ -3,7 +3,7 @@
 ## Resumen
 
 **Version:** 1.3.0
-**Estado:** Migración Cloud en progreso (Fases 1-4 completadas)
+**Estado:** Migración Cloud en progreso (Fases 1-5 completadas)
 
 ## Progreso Cloud Migration
 
@@ -13,10 +13,34 @@
 | Fase 2: Modelo de Datos Unificado | ✅ Completada | Portfolio model + portfolio_id |
 | Fase 3: Soporte PostgreSQL | ✅ Completada | DATABASE_URL en Database class |
 | Fase 4: Script Migración | ✅ Completada | SQLite → PostgreSQL |
-| Fase 5: Autenticación | ⏳ Pendiente | AuthService + Login UI |
+| Fase 5: Autenticación | ✅ Completada | AuthService + Login UI |
 | Fase 6: Deployment | ⏳ Pendiente | Streamlit Cloud |
 
-## Cambios Fase 4 (Actual)
+## Cambios Fase 5 (Actual)
+
+### Archivos Nuevos
+- `src/services/auth_service.py` - Servicio de autenticacion
+- `app/components/auth.py` - Componentes UI de login
+- `.streamlit/secrets.toml.example` - Template de configuracion
+- `tests/unit/test_auth_service.py` - 19 tests
+
+### Archivos Modificados
+- `app/main.py` - Integrado auth y sidebar adaptativo
+- `src/services/__init__.py` - Exporta AuthService
+
+### Uso
+
+```python
+from src.services import AuthService
+
+# Generar hash para secrets.toml
+hash = AuthService.generate_password_hash('mi_password')
+
+# Verificar credenciales
+user = AuthService.verify_credentials('usuario', 'password')
+```
+
+## Cambios Fase 4
 
 ### Archivos Nuevos
 - `scripts/migrate_to_cloud.py` - Script de migración SQLite → PostgreSQL
@@ -167,11 +191,11 @@ python -c "from src.core import is_cloud_environment; print(is_cloud_environment
 
 ## Próximo Paso
 
-**Fase 5: Autenticación**
-- Crear `AuthService` en `src/services/auth_service.py`
-- Crear componente de login en `app/components/login.py`
-- Integrar auth en `app/main.py`
-- Condicionar sidebar según `can_switch_portfolio()`
+**Fase 6: Deployment**
+- Configurar secrets en Streamlit Cloud Dashboard
+- Deploy del repositorio
+- Verificar funcionamiento en producción
+- Documentación de deployment
 
 ## Arquitectura Híbrida
 

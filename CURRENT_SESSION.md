@@ -3,7 +3,7 @@
 ## Resumen
 
 **Version:** 1.3.0
-**Estado:** Migración Cloud en progreso (Fases 1-3 completadas)
+**Estado:** Migración Cloud en progreso (Fases 1-4 completadas)
 
 ## Progreso Cloud Migration
 
@@ -12,11 +12,29 @@
 | Fase 1: Infraestructura Base | ✅ Completada | Environment detection + ProfileManager abstraction |
 | Fase 2: Modelo de Datos Unificado | ✅ Completada | Portfolio model + portfolio_id |
 | Fase 3: Soporte PostgreSQL | ✅ Completada | DATABASE_URL en Database class |
-| Fase 4: Script Migración | ⏳ Pendiente | SQLite → PostgreSQL |
+| Fase 4: Script Migración | ✅ Completada | SQLite → PostgreSQL |
 | Fase 5: Autenticación | ⏳ Pendiente | AuthService + Login UI |
 | Fase 6: Deployment | ⏳ Pendiente | Streamlit Cloud |
 
-## Cambios Fase 3 (Actual)
+## Cambios Fase 4 (Actual)
+
+### Archivos Nuevos
+- `scripts/migrate_to_cloud.py` - Script de migración SQLite → PostgreSQL
+
+### Uso del Script
+
+```bash
+# Ver qué se migraría (sin cambios)
+python scripts/migrate_to_cloud.py --dry-run
+
+# Ejecutar migración real
+python scripts/migrate_to_cloud.py --execute
+
+# Con DATABASE_URL explícita
+python scripts/migrate_to_cloud.py --execute --database-url "postgresql://..."
+```
+
+## Cambios Fase 3
 
 ### Archivos Nuevos
 - `tests/unit/test_database_postgres.py` - 13 tests para soporte PostgreSQL
@@ -149,12 +167,11 @@ python -c "from src.core import is_cloud_environment; print(is_cloud_environment
 
 ## Próximo Paso
 
-**Fase 4: Script de Migración**
-- Crear `scripts/migrate_to_cloud.py`
-- Leer todos los SQLite en `data/portfolios/`
-- Crear portfolios en PostgreSQL
-- Migrar transacciones/dividendos con portfolio_id
-- Verificar integridad de datos
+**Fase 5: Autenticación**
+- Crear `AuthService` en `src/services/auth_service.py`
+- Crear componente de login en `app/components/login.py`
+- Integrar auth en `app/main.py`
+- Condicionar sidebar según `can_switch_portfolio()`
 
 ## Arquitectura Híbrida
 

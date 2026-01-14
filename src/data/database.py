@@ -17,6 +17,11 @@ CAMBIOS v4 (Refactor Escalabilidad):
 - Movido a src/data/database.py
 - Archivo de compatibilidad en src/database.py mantiene imports existentes
 
+CAMBIOS v5 (Cloud Migration - Fase 2):
+- Añadido campo portfolio_id a Transaction y Dividend
+- Soporte para multi-tenant en modo cloud
+- portfolio_id es nullable para compatibilidad local
+
 Este módulo gestiona toda la interacción con la base de datos SQLite.
 """
 
@@ -65,6 +70,9 @@ class Transaction(Base):
     Campo para traspasos:
     - cost_basis_eur: Para transfer_in, el coste fiscal heredado del fondo origen
     - transfer_link_id: ID de la transacción vinculada (transfer_out <-> transfer_in)
+
+    Campo para cloud multi-tenant:
+    - portfolio_id: ID del portfolio (nullable para compatibilidad local)
     """
     __tablename__ = 'transactions'
 
@@ -88,6 +96,9 @@ class Transaction(Base):
     # CAMPOS para traspasos (fiscalidad española)
     cost_basis_eur = Column(Float)  # Coste fiscal heredado (para transfer_in)
     transfer_link_id = Column(Integer)  # ID de la transacción vinculada
+
+    # CAMPO para cloud multi-tenant (nullable para compatibilidad local)
+    portfolio_id = Column(Integer, nullable=True, index=True)
 
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.now)
@@ -114,12 +125,18 @@ class Transaction(Base):
             'unrealized_gain_eur': self.unrealized_gain_eur,
             'cost_basis_eur': self.cost_basis_eur,
             'transfer_link_id': self.transfer_link_id,
+            'portfolio_id': self.portfolio_id,
             'notes': self.notes
         }
 
 
 class Dividend(Base):
-    """Modelo de dividendos recibidos"""
+    """
+    Modelo de dividendos recibidos.
+
+    Campo para cloud multi-tenant:
+    - portfolio_id: ID del portfolio (nullable para compatibilidad local)
+    """
     __tablename__ = 'dividends'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -131,6 +148,10 @@ class Dividend(Base):
     withholding_tax = Column(Float)  # Calculado: gross - net
     currency = Column(String(10), default='EUR')
     notes = Column(Text)
+
+    # CAMPO para cloud multi-tenant (nullable para compatibilidad local)
+    portfolio_id = Column(Integer, nullable=True, index=True)
+
     created_at = Column(DateTime, default=datetime.now)
 
     def __repr__(self):
@@ -146,6 +167,7 @@ class Dividend(Base):
             'net_amount': self.net_amount,
             'withholding_tax': self.withholding_tax,
             'currency': self.currency,
+            'portfolio_id': self.portfolio_id,
             'notes': self.notes
         }
 

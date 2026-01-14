@@ -2,13 +2,17 @@
 Modulo de Datos (Data Layer)
 
 Este modulo contiene todo lo relacionado con la persistencia de datos:
-- Modelos SQLAlchemy (Transaction, Dividend, Fund, etc.)
+- Modelos SQLAlchemy (Transaction, Dividend, Fund, Portfolio, etc.)
 - Clase Database para acceso a datos
 - Repositorios (FundRepository, etc.)
 - Migraciones
 
+Cloud Migration - Fase 2:
+- Añadido modelo Portfolio para multi-tenant
+- Transaction y Dividend ahora tienen portfolio_id
+
 Uso:
-    from src.data import Database, Transaction, Dividend, Fund
+    from src.data import Database, Transaction, Dividend, Fund, Portfolio
     from src.data.repositories import FundRepository
 
     db = Database()
@@ -33,6 +37,7 @@ from src.data.database import (
 )
 
 from src.data.models import (
+    Portfolio,
     Fund,
     FUND_CATEGORIES,
     FUND_REGIONS,
@@ -51,7 +56,9 @@ __all__ = [
     'BenchmarkData',
     'PortfolioSnapshot',
     'AssetPrice',
-    # Nuevo modelo de fondos
+    # Portfolio (Cloud multi-tenant)
+    'Portfolio',
+    # Modelo de fondos
     'Fund',
     'FUND_CATEGORIES',
     'FUND_REGIONS',

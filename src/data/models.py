@@ -1,17 +1,22 @@
 """
-Models - Modelos de datos para el catalogo de fondos
+Models - Modelos de datos para Investment Tracker
 
-Este modulo contiene modelos SQLAlchemy adicionales para funcionalidades
-del catalogo de fondos. Los modelos base (Transaction, Dividend, etc.)
-permanecen en database.py por compatibilidad.
+Este modulo contiene modelos SQLAlchemy para:
+- Portfolio: Carteras de inversión (cloud multi-tenant)
+- Fund: Catálogo de fondos de inversión
+- Category: Categorías personalizadas
 
-Sesion 6 del plan de escalabilidad.
+Los modelos base (Transaction, Dividend, etc.) permanecen en database.py
+por compatibilidad con código existente.
+
+Cloud Migration - Fase 2: Modelo de datos unificado
 """
 
 import json
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Text, Boolean, Index
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Text, Boolean, Index, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 # Usar la misma Base que database.py para que compartan metadata
@@ -19,6 +24,46 @@ try:
     from src.data.database import Base
 except ImportError:
     from database import Base
+
+
+# =============================================================================
+# MODELO PORTFOLIO - Multi-tenant para Cloud
+# =============================================================================
+
+class Portfolio(Base):
+    """
+    Modelo para carteras de inversión.
+
+    En modo LOCAL: No se usa (cada archivo .db es una cartera)
+    En modo CLOUD: Una fila por cartera, relacionada con transacciones/dividendos
+
+    Uso:
+        from src.data.models import Portfolio
+
+        portfolio = Portfolio(
+            name='Mi Cartera Personal',
+            description='Inversiones a largo plazo'
+        )
+    """
+    __tablename__ = 'portfolios'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<Portfolio(id={self.id}, name={self.name})>"
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
 
 
 class Fund(Base):

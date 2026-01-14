@@ -3,20 +3,31 @@
 ## Resumen
 
 **Version:** 1.3.0
-**Estado:** Migración Cloud en progreso (Fase 1 completada)
+**Estado:** Migración Cloud en progreso (Fases 1-2 completadas)
 
 ## Progreso Cloud Migration
 
 | Fase | Estado | Descripción |
 |------|--------|-------------|
 | Fase 1: Infraestructura Base | ✅ Completada | Environment detection + ProfileManager abstraction |
-| Fase 2: Modelo de Datos Unificado | ⏳ Pendiente | Portfolio model + portfolio_id |
+| Fase 2: Modelo de Datos Unificado | ✅ Completada | Portfolio model + portfolio_id |
 | Fase 3: Soporte PostgreSQL | ⏳ Pendiente | DATABASE_URL en Database class |
 | Fase 4: Script Migración | ⏳ Pendiente | SQLite → PostgreSQL |
 | Fase 5: Autenticación | ⏳ Pendiente | AuthService + Login UI |
 | Fase 6: Deployment | ⏳ Pendiente | Streamlit Cloud |
 
-## Cambios Fase 1 (Actual)
+## Cambios Fase 2 (Actual)
+
+### Archivos Nuevos
+- `src/data/migrations/003_add_portfolio_support.py` - Migración para portfolios
+- `tests/unit/test_portfolio_model.py` - 14 tests para modelo Portfolio
+
+### Archivos Modificados
+- `src/data/models.py` - Añadido modelo Portfolio
+- `src/data/database.py` - Añadido portfolio_id a Transaction y Dividend
+- `src/data/__init__.py` - Exportación de Portfolio
+
+## Cambios Fase 1
 
 ### Archivos Nuevos
 - `src/core/environment.py` - Detección de entorno (local vs cloud)
@@ -79,7 +90,14 @@ investment_tracker/
 ## Tests
 
 ```
-207 passed, 2 skipped in 32s
+221 passed, 2 skipped in 28s
+
+Nuevos tests (Fase 2):
+- test_portfolio_model.py: 14 tests
+  - TestPortfolioModel: 4 tests
+  - TestTransactionPortfolioId: 4 tests
+  - TestDividendPortfolioId: 4 tests
+  - TestMigrationScript: 2 tests
 
 Nuevos tests (Fase 1):
 - test_environment.py: 25 tests
@@ -105,11 +123,11 @@ python -c "from src.core import is_cloud_environment; print(is_cloud_environment
 
 ## Próximo Paso
 
-**Fase 2: Modelo de Datos Unificado**
-- Crear modelo `Portfolio` en `src/data/models.py`
-- Añadir `portfolio_id` a Transaction y Dividend
-- Crear migración SQLite
-- Actualizar repositories
+**Fase 3: Soporte PostgreSQL**
+- Añadir `psycopg2-binary` a requirements
+- Modificar `Database` para detectar `DATABASE_URL`
+- Ajustar tipos de datos para compatibilidad SQLite/Postgres
+- Tests con ambos backends
 
 ## Arquitectura Híbrida
 

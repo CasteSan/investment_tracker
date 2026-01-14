@@ -33,6 +33,7 @@ from components.charts import (
     plot_portfolio_treemap
 )
 from components.tables import create_positions_table, display_styled_dataframe
+from components.cache import get_cached_dashboard_data
 
 st.title("📊 Dashboard de Cartera")
 
@@ -60,29 +61,27 @@ with st.sidebar:
 
 try:
     # ==========================================================================
-    # OBTENER DATOS DEL SERVICIO (reemplaza ~75 lineas de logica)
+    # OBTENER DATOS CON CACHE (mejora rendimiento en cloud)
     # ==========================================================================
     db_path = st.session_state.get('db_path')
-    service = PortfolioService(db_path=db_path)
+
+    # Obtener datos cacheados (evita consultas repetidas a PostgreSQL)
+    data = get_cached_dashboard_data(db_path, fiscal_year, fiscal_method)
 
     # Verificar si hay posiciones
-    if not service.has_positions():
+    if data['positions'] is None or data['positions'].empty:
         st.warning("⚠️ No hay posiciones en la cartera. Importa tus transacciones primero.")
-        service.close()
         st.stop()
-
-    # Obtener todos los datos del dashboard en una sola llamada
-    data = service.get_dashboard_data(
-        fiscal_year=fiscal_year,
-        fiscal_method=fiscal_method
-    )
 
     positions = data['positions']
     metrics = data['metrics']
     fiscal_summary = data['fiscal_summary']
     dividend_totals = data['dividend_totals']
 
-    # Aplicar filtros de UI
+    # Servicio para operaciones adicionales (filtros, graficos)
+    service = PortfolioService(db_path=db_path)
+
+    # Aplicar filtros de UI (operaciones en memoria)
     positions = service.filter_positions(positions, asset_type_filter)
     positions = service.sort_positions(positions, sort_by)
     positions = service.enrich_with_weights(positions)

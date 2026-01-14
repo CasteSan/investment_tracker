@@ -30,32 +30,33 @@ from components.charts import (
     plot_allocation_donut
 )
 from components.tables import create_positions_table
+from components.cache import get_cached_currencies, get_cached_positions
 
 st.title("📈 Análisis de Cartera")
+
+# Obtener db_path
+db_path = st.session_state.get('db_path')
 
 # Sidebar - Filtros
 with st.sidebar:
     st.header("🔍 Filtros")
-    
+
     # Tipo de activo
     asset_filter = st.multiselect(
         "Tipo de activo",
         ["accion", "fondo", "etf"],
         default=["accion", "fondo", "etf"]
     )
-    
-    # Divisa
-    db_path = st.session_state.get('db_path')
-    db = Database(db_path=db_path)
-    currencies = db.get_currencies_used()
-    db.close()
-    
+
+    # Divisa (cacheado)
+    currencies = get_cached_currencies(db_path)
+
     currency_filter = st.multiselect(
         "Divisa",
         currencies,
         default=currencies
     )
-    
+
     # Solo posiciones con ganancia/pérdida
     gain_loss_filter = st.radio(
         "Mostrar",
@@ -63,15 +64,14 @@ with st.sidebar:
     )
 
 try:
-    # Cargar datos
-    portfolio = Portfolio(db_path=db_path)
-    db = Database(db_path=db_path)
-    
-    # Obtener precios de mercado descargados
-    current_prices = db.get_all_latest_prices()
-    
-    # Obtener posiciones con precios actuales
-    positions = portfolio.get_current_positions(current_prices=current_prices)
+    # Cargar datos con cache
+    pos_data = get_cached_positions(db_path)
+
+    if not pos_data['has_positions']:
+        st.warning("⚠️ No hay posiciones en la cartera")
+        st.stop()
+
+    positions = pos_data['positions']
     
     if positions.empty:
         st.warning("⚠️ No hay posiciones en la cartera")
@@ -503,8 +503,6 @@ try:
     }
     
     st.dataframe(pd.DataFrame(stats_data), use_container_width=True, hide_index=True)
-    
-    portfolio.close()
 
 except Exception as e:
     st.error(f"Error cargando datos: {e}")

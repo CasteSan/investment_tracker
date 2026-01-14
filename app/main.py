@@ -31,6 +31,12 @@ try:
         render_user_info,
         init_session_state
     )
+    from app.components.cache import (
+        get_cached_positions,
+        get_cached_fiscal_summary,
+        get_cached_dividend_totals,
+        get_cached_database_stats
+    )
     from src.services.auth_service import AuthService
     MODULES_AVAILABLE = True
 except ImportError as e:
@@ -232,12 +238,10 @@ def main():
 
         st.divider()
 
-        # Estado de la base de datos
+        # Estado de la base de datos (con cache)
         st.subheader("📁 Base de Datos")
         try:
-            db = Database(db_path=current_db_path)
-            stats = db.get_database_stats()
-            db.close()
+            stats = get_cached_database_stats(current_db_path)
 
             st.metric("Transacciones", stats['total_transactions'])
             st.metric("Dividendos", stats['total_dividends'])
@@ -259,38 +263,38 @@ def main():
     st.markdown('<p class="section-title">📈 Resumen de Cartera</p>', unsafe_allow_html=True)
     
     try:
-        # Obtener datos del portfolio (usando db_path de session_state)
+        # Obtener datos con cache (mejora rendimiento en cloud)
         db_path = st.session_state.get('db_path')
-        db = Database(db_path=db_path)
-        portfolio = Portfolio(db_path=db_path)
 
-        # Obtener precios de mercado actuales (igual que Dashboard)
-        current_prices = db.get_all_latest_prices()
+        # Datos de posiciones cacheados
+        pos_data = get_cached_positions(db_path)
 
         # Métricas principales en 4 columnas
         col1, col2, col3, col4 = st.columns(4)
 
-        # Valor total (usando precios de mercado actualizados)
-        positions = portfolio.get_current_positions(current_prices=current_prices)
-        total_value = positions['market_value'].sum() if not positions.empty else 0
-        total_cost = positions['cost_basis'].sum() if not positions.empty else 0
-        unrealized_gain = positions['unrealized_gain'].sum() if not positions.empty else 0
-        unrealized_pct = (unrealized_gain / total_cost * 100) if total_cost > 0 else 0
-        
+        if pos_data['has_positions']:
+            metrics = pos_data['metrics']
+            total_value = metrics['total_value']
+            total_cost = metrics['total_cost']
+            unrealized_gain = metrics['unrealized_gain']
+            unrealized_pct = metrics['unrealized_pct']
+        else:
+            total_value = total_cost = unrealized_gain = unrealized_pct = 0
+
         with col1:
             st.metric(
                 "💰 Valor Total",
                 f"{total_value:,.2f}€",
                 help="Valor de mercado actual de todas las posiciones"
             )
-        
+
         with col2:
             st.metric(
                 "📊 Invertido",
                 f"{total_cost:,.2f}€",
                 help="Coste total de adquisición"
             )
-        
+
         with col3:
             delta_color = "normal" if unrealized_gain >= 0 else "inverse"
             st.metric(
@@ -300,13 +304,11 @@ def main():
                 delta_color=delta_color,
                 help="Ganancias no realizadas"
             )
-        
-        # Plusvalías realizadas del año
-        tax = TaxCalculator(method=fiscal_method, db_path=db_path)
-        fiscal_summary = tax.get_fiscal_year_summary(fiscal_year)
+
+        # Plusvalías realizadas del año (cacheado)
+        fiscal_summary = get_cached_fiscal_summary(db_path, fiscal_year, fiscal_method)
         realized_gain = fiscal_summary.get('net_gain', 0)
-        tax.close()
-        
+
         with col4:
             delta_color = "normal" if realized_gain >= 0 else "inverse"
             st.metric(
@@ -315,22 +317,18 @@ def main():
                 delta_color=delta_color,
                 help=f"Plusvalías/minusvalías realizadas en {fiscal_year}"
             )
-        
-        portfolio.close()
-        db.close()
 
         st.divider()
-        
+
         # Segunda fila: Dividendos y navegación
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.markdown('<p class="section-title">💵 Dividendos del Año</p>', unsafe_allow_html=True)
-            
-            dm = DividendManager(db_path=db_path)
-            div_totals = dm.get_total_dividends(year=fiscal_year)
-            dm.close()
-            
+
+            # Dividendos cacheados
+            div_totals = get_cached_dividend_totals(db_path, fiscal_year)
+
             if div_totals['count'] > 0:
                 subcol1, subcol2, subcol3 = st.columns(3)
                 with subcol1:
@@ -357,19 +355,20 @@ def main():
             """)
         
         st.divider()
-        
+
         # Top posiciones
         st.markdown('<p class="section-title">🏆 Top 5 Posiciones por Valor</p>', unsafe_allow_html=True)
-        
-        if not positions.empty:
+
+        positions = pos_data.get('positions')
+        if positions is not None and not positions.empty:
             top5 = positions.nlargest(5, 'market_value')[['ticker', 'name', 'quantity', 'market_value', 'unrealized_gain', 'unrealized_gain_pct']]
             top5.columns = ['Ticker', 'Nombre', 'Cantidad', 'Valor (€)', 'Ganancia (€)', 'Ganancia (%)']
-            
+
             # Formatear
             top5['Valor (€)'] = top5['Valor (€)'].apply(lambda x: f"{x:,.2f}")
             top5['Ganancia (€)'] = top5['Ganancia (€)'].apply(lambda x: f"{x:+,.2f}")
             top5['Ganancia (%)'] = top5['Ganancia (%)'].apply(lambda x: f"{x:+.2f}%")
-            
+
             st.dataframe(
                 top5,
                 use_container_width=True,

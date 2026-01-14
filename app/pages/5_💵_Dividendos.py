@@ -25,13 +25,17 @@ from src.database import Database
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.charts import plot_dividend_calendar, plot_allocation_donut
 from components.tables import create_dividends_table
+from components.cache import get_cached_tickers, get_cached_dividend_totals
 
 st.title("💵 Dividendos")
+
+# Obtener db_path
+db_path = st.session_state.get('db_path')
 
 # Sidebar - Filtros
 with st.sidebar:
     st.header("🔍 Filtros")
-    
+
     # Año
     current_year = datetime.now().year
     div_year = st.selectbox(
@@ -39,27 +43,22 @@ with st.sidebar:
         list(range(current_year, current_year - 5, -1)),
         index=0
     )
-    
-    # Ticker específico
-    db_path = st.session_state.get('db_path')
-    db = Database(db_path=db_path)
-    tickers = db.get_all_tickers()
-    db.close()
-    
+
+    # Ticker específico (cacheado)
+    tickers = get_cached_tickers(db_path)
+
     ticker_filter = st.selectbox(
         "Activo",
         ["Todos"] + tickers
     )
 
 try:
-    dm = DividendManager(db_path=db_path)
-    
     # =========================================================================
-    # RESUMEN DE DIVIDENDOS
+    # RESUMEN DE DIVIDENDOS (cacheado)
     # =========================================================================
     st.markdown(f"### 📊 Resumen {div_year}")
-    
-    totals = dm.get_total_dividends(year=div_year)
+
+    totals = get_cached_dividend_totals(db_path, div_year)
     
     col1, col2, col3, col4, col5 = st.columns(5)
     
@@ -80,12 +79,15 @@ try:
         st.metric("Tasa Media", f"{avg_rate:.1f}%")
     
     st.divider()
-    
+
+    # DividendManager para operaciones detalladas (no cacheadas)
+    dm = DividendManager(db_path=db_path)
+
     # =========================================================================
     # CALENDARIO DE DIVIDENDOS
     # =========================================================================
     st.markdown(f"### 📅 Calendario {div_year}")
-    
+
     calendar = dm.get_dividend_calendar(div_year)
     
     if calendar:

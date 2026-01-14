@@ -46,6 +46,20 @@ FUND_COLUMNS = [
     ('custom_category', 'VARCHAR(50)'),
 ]
 
+# Categorias iniciales para tabla categories
+DEFAULT_CATEGORIES = [
+    "RV Global",
+    "RV USA",
+    "RV Europa",
+    "RV Emergente",
+    "RV Sectorial",
+    "RF Corto Plazo",
+    "RF Largo Plazo",
+    "Retorno Absoluto",
+    "Monetario",
+    "Otros",
+]
+
 
 def get_existing_columns(conn: sqlite3.Connection, table: str) -> set:
     """Obtiene las columnas existentes de una tabla."""
@@ -119,6 +133,65 @@ def apply_fund_migrations(db_path: Path, dry_run: bool = False) -> dict:
     return result
 
 
+def apply_category_migrations(db_path: Path, dry_run: bool = False) -> dict:
+    """
+    Crea la tabla categories y la puebla con valores iniciales.
+
+    Args:
+        db_path: Ruta al archivo .db
+        dry_run: Si True, solo reporta sin aplicar cambios
+
+    Returns:
+        dict con estadísticas de la migración
+    """
+    result = {
+        'db': db_path.name,
+        'table_created': False,
+        'categories_added': 0,
+        'errors': []
+    }
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+
+        # Crear tabla si no existe
+        if not table_exists(conn, 'categories'):
+            if not dry_run:
+                conn.execute("""
+                    CREATE TABLE categories (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(100) UNIQUE NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+            result['table_created'] = True
+
+        # Poblar con categorias iniciales si esta vacia
+        cursor = conn.execute("SELECT COUNT(*) FROM categories")
+        count = cursor.fetchone()[0]
+
+        if count == 0:
+            if not dry_run:
+                for name in DEFAULT_CATEGORIES:
+                    try:
+                        conn.execute(
+                            "INSERT INTO categories (name) VALUES (?)",
+                            (name,)
+                        )
+                    except sqlite3.IntegrityError:
+                        pass  # Ya existe
+                conn.commit()
+            result['categories_added'] = len(DEFAULT_CATEGORIES)
+
+        conn.close()
+
+    except Exception as e:
+        result['errors'].append(str(e))
+
+    return result
+
+
 def find_all_databases() -> list:
     """Encuentra todas las bases de datos de portfolios."""
     dbs = []
@@ -180,35 +253,51 @@ def main():
     print()
 
     # Aplicar migraciones
-    total_added = 0
+    total_columns_added = 0
+    total_categories_added = 0
+    total_tables_created = 0
     total_errors = 0
 
     for db_path in databases:
         print(f"Procesando: {db_path.name}")
         print("-" * 40)
 
+        # Migración de columnas de funds
         result = apply_fund_migrations(db_path, dry_run=args.check)
 
         if not result['table_exists']:
-            print("  Tabla 'funds' no existe (saltando)")
-            print()
-            continue
+            print("  Tabla 'funds' no existe (saltando columnas)")
+        else:
+            if result['columns_added']:
+                action = "Por añadir" if args.check else "Añadidas"
+                print(f"  Columnas {action}: {len(result['columns_added'])}")
+                for col in result['columns_added']:
+                    print(f"    + {col}")
+                total_columns_added += len(result['columns_added'])
 
-        if result['columns_added']:
-            action = "Por añadir" if args.check else "Añadidas"
-            print(f"  {action}: {len(result['columns_added'])}")
-            for col in result['columns_added']:
-                print(f"    + {col}")
-            total_added += len(result['columns_added'])
+            if result['columns_existing']:
+                print(f"  Columnas existentes: {len(result['columns_existing'])}")
 
-        if result['columns_existing']:
-            print(f"  Ya existen: {len(result['columns_existing'])}")
+        # Migración de tabla categories
+        cat_result = apply_category_migrations(db_path, dry_run=args.check)
 
-        if result['errors']:
-            print(f"  Errores: {len(result['errors'])}")
-            for err in result['errors']:
+        if cat_result['table_created']:
+            action = "Por crear" if args.check else "Creada"
+            print(f"  Tabla 'categories': {action}")
+            total_tables_created += 1
+
+        if cat_result['categories_added'] > 0:
+            action = "Por insertar" if args.check else "Insertadas"
+            print(f"  Categorias {action}: {cat_result['categories_added']}")
+            total_categories_added += cat_result['categories_added']
+
+        # Errores
+        all_errors = result.get('errors', []) + cat_result.get('errors', [])
+        if all_errors:
+            print(f"  Errores: {len(all_errors)}")
+            for err in all_errors:
                 print(f"    ! {err}")
-            total_errors += len(result['errors'])
+            total_errors += len(all_errors)
 
         print()
 
@@ -218,12 +307,16 @@ def main():
     print("=" * 60)
     print(f"Bases de datos procesadas: {len(databases)}")
     if args.check:
-        print(f"Columnas pendientes: {total_added}")
+        print(f"Columnas pendientes: {total_columns_added}")
+        print(f"Tablas por crear: {total_tables_created}")
+        print(f"Categorias por insertar: {total_categories_added}")
     else:
-        print(f"Columnas añadidas: {total_added}")
+        print(f"Columnas añadidas: {total_columns_added}")
+        print(f"Tablas creadas: {total_tables_created}")
+        print(f"Categorias insertadas: {total_categories_added}")
     print(f"Errores: {total_errors}")
 
-    if args.check and total_added > 0:
+    if args.check and (total_columns_added > 0 or total_tables_created > 0):
         print()
         print("Ejecuta sin --check para aplicar los cambios.")
 

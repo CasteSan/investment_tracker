@@ -17,12 +17,19 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.services.fund_service import FundService
 from src.providers.morningstar import FundNotFoundError, FundDataProviderError
-from src.data.models import FUND_RISK_LEVELS, CUSTOM_CATEGORIES
+from src.data.models import FUND_RISK_LEVELS
 
 
 # =============================================================================
 # FUNCIONES CACHEADAS PARA RENDIMIENTO
 # =============================================================================
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_cached_categories(db_path: str):
+    """Obtiene categorias de la BD con cache de 1 minuto."""
+    with FundService(db_path=db_path) as service:
+        return service.get_all_categories()
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_cached_funds(db_path: str, _cache_key: str, **filters):
@@ -45,6 +52,7 @@ def invalidate_fund_cache():
     """Invalida la cache de fondos cuando hay cambios."""
     get_cached_funds.clear()
     get_cached_fund_count.clear()
+    get_cached_categories.clear()
 
 
 st.set_page_config(
@@ -283,16 +291,46 @@ with tab_import:
 
         st.divider()
 
-        # Selector de categoria personalizada
+        # Selector de categoria personalizada (dinamica desde BD)
         st.markdown("**Asignar categoria personalizada:**")
+
+        # Obtener categorias de la BD
+        db_categories = get_cached_categories(db_path)
+        category_options = ["", "➕ Crear nueva..."] + db_categories
+
         selected_category = st.selectbox(
             "Categoria",
-            options=[""] + CUSTOM_CATEGORIES,
+            options=category_options,
             index=0,
             format_func=lambda x: "Seleccionar categoria..." if x == "" else x,
             key="import_custom_category",
             label_visibility="collapsed"
         )
+
+        # Si selecciona "Crear nueva", mostrar input
+        final_category = None
+        if selected_category == "➕ Crear nueva...":
+            col_new, col_add = st.columns([3, 1])
+            with col_new:
+                new_cat_name = st.text_input(
+                    "Nombre de la nueva categoria",
+                    placeholder="Ej: RV Small Caps",
+                    key="new_category_name",
+                    label_visibility="collapsed"
+                )
+            with col_add:
+                if st.button("Crear", type="secondary"):
+                    if new_cat_name.strip():
+                        with FundService(db_path=db_path) as svc:
+                            if svc.add_category(new_cat_name.strip()):
+                                st.success(f"Categoria '{new_cat_name}' creada")
+                                invalidate_fund_cache()
+                                st.rerun()
+                            else:
+                                st.warning("La categoria ya existe")
+            final_category = new_cat_name.strip() if new_cat_name else None
+        elif selected_category:
+            final_category = selected_category
 
         # Boton guardar
         col_save, col_cancel = st.columns([1, 3])
@@ -304,8 +342,8 @@ with tab_import:
                         with FundService(db_path=db_path) as service:
                             fund = service.fetch_and_import_fund(preview['isin'])
                             # Guardar categoria personalizada si se seleccionó
-                            if selected_category:
-                                fund.custom_category = selected_category
+                            if final_category:
+                                fund.custom_category = final_category
                                 service.repository.update(fund)
                             st.success(f"Fondo guardado: {fund.name}")
                             st.session_state.fund_preview = None
@@ -335,10 +373,11 @@ with tab_catalog:
                 st.stop()
 
             # =================================================================
-            # FILTRO POR CATEGORIA PERSONALIZADA (Pills)
+            # FILTRO POR CATEGORIA PERSONALIZADA (Pills - dinamico desde BD)
             # =================================================================
             st.markdown("**Filtrar por categoria:**")
-            category_options = ["Todas"] + CUSTOM_CATEGORIES
+            db_categories = service.get_all_categories()
+            category_options = ["Todas"] + db_categories
             selected_cat_filter = st.radio(
                 "Categoria",
                 options=category_options,
@@ -860,9 +899,10 @@ with tab_catalog:
 
                     with col_cat:
                         st.markdown("**Mi Categoria:**")
-                        # Determinar indice actual
+                        # Obtener categorias dinamicas de la BD
+                        edit_categories = service.get_all_categories()
                         current_cat = fund.custom_category or ""
-                        cat_options = [""] + CUSTOM_CATEGORIES
+                        cat_options = ["", "➕ Nueva..."] + edit_categories
                         current_idx = cat_options.index(current_cat) if current_cat in cat_options else 0
 
                         new_category = st.selectbox(
@@ -873,7 +913,24 @@ with tab_catalog:
                             key=f"edit_cat_{fund.isin}",
                             label_visibility="collapsed"
                         )
-                        if new_category != current_cat:
+
+                        # Si selecciona crear nueva
+                        if new_category == "➕ Nueva...":
+                            new_cat_input = st.text_input(
+                                "Nueva categoria",
+                                key=f"new_cat_{fund.isin}",
+                                placeholder="Nombre...",
+                                label_visibility="collapsed"
+                            )
+                            if st.button("Crear y asignar", key=f"create_cat_{fund.isin}"):
+                                if new_cat_input.strip():
+                                    service.add_category(new_cat_input.strip())
+                                    fund.custom_category = new_cat_input.strip()
+                                    service.repository.update(fund)
+                                    invalidate_fund_cache()
+                                    st.success(f"Categoria '{new_cat_input}' creada y asignada")
+                                    st.rerun()
+                        elif new_category != current_cat:
                             fund.custom_category = new_category if new_category else None
                             service.repository.update(fund)
                             invalidate_fund_cache()

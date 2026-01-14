@@ -25,7 +25,7 @@ import pandas as pd
 
 try:
     from src.services.base import BaseService
-    from src.data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
+    from src.data.models import Fund, Category, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS, DEFAULT_CUSTOM_CATEGORIES
     from src.data.repositories.fund_repository import FundRepository
     from src.providers.morningstar import (
         FundDataProvider,
@@ -35,7 +35,7 @@ try:
     from src.logger import get_logger
 except ImportError:
     from services.base import BaseService
-    from data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
+    from data.models import Fund, Category, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS, DEFAULT_CUSTOM_CATEGORIES
     from data.repositories.fund_repository import FundRepository
     from providers.morningstar import (
         FundDataProvider,
@@ -71,11 +71,28 @@ class FundService(BaseService):
         logger.info("FundService inicializado")
 
     def _ensure_table_exists(self):
-        """Crea la tabla funds si no existe."""
+        """Crea las tablas funds y categories si no existen."""
         try:
             Fund.__table__.create(self.db.engine, checkfirst=True)
+            Category.__table__.create(self.db.engine, checkfirst=True)
+            # Poblar categorias iniciales si la tabla esta vacia
+            self._seed_categories()
         except Exception as e:
-            logger.warning(f"No se pudo verificar tabla funds: {e}")
+            logger.warning(f"No se pudo verificar tablas: {e}")
+
+    def _seed_categories(self):
+        """Inserta categorias por defecto si la tabla esta vacia."""
+        try:
+            count = self.db.session.query(Category).count()
+            if count == 0:
+                for name in DEFAULT_CUSTOM_CATEGORIES:
+                    cat = Category(name=name)
+                    self.db.session.add(cat)
+                self.db.session.commit()
+                logger.info(f"Insertadas {len(DEFAULT_CUSTOM_CATEGORIES)} categorias iniciales")
+        except Exception as e:
+            self.db.session.rollback()
+            logger.warning(f"No se pudieron insertar categorias: {e}")
 
     @property
     def repository(self) -> FundRepository:
@@ -88,6 +105,77 @@ class FundService(BaseService):
         """Cierra conexiones."""
         super().close()
         logger.debug("FundService cerrado")
+
+    # =========================================================================
+    # GESTION DE CATEGORIAS PERSONALIZADAS
+    # =========================================================================
+
+    def get_all_categories(self) -> List[str]:
+        """
+        Obtiene todas las categorias personalizadas de la BD.
+
+        Returns:
+            Lista de nombres de categorias ordenados alfabeticamente
+        """
+        try:
+            categories = self.db.session.query(Category).order_by(Category.name).all()
+            return [c.name for c in categories]
+        except Exception as e:
+            logger.warning(f"Error obteniendo categorias: {e}")
+            return DEFAULT_CUSTOM_CATEGORIES
+
+    def add_category(self, name: str) -> bool:
+        """
+        Añade una nueva categoria personalizada.
+
+        Args:
+            name: Nombre de la categoria (se normaliza)
+
+        Returns:
+            True si se creo, False si ya existia
+        """
+        name = name.strip()
+        if not name:
+            return False
+
+        try:
+            # Verificar si ya existe
+            existing = self.db.session.query(Category).filter_by(name=name).first()
+            if existing:
+                return False
+
+            cat = Category(name=name)
+            self.db.session.add(cat)
+            self.db.session.commit()
+            logger.info(f"Categoria creada: {name}")
+            return True
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Error creando categoria: {e}")
+            return False
+
+    def delete_category(self, name: str) -> bool:
+        """
+        Elimina una categoria personalizada.
+
+        Args:
+            name: Nombre de la categoria
+
+        Returns:
+            True si se elimino, False si no existia
+        """
+        try:
+            cat = self.db.session.query(Category).filter_by(name=name).first()
+            if cat:
+                self.db.session.delete(cat)
+                self.db.session.commit()
+                logger.info(f"Categoria eliminada: {name}")
+                return True
+            return False
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Error eliminando categoria: {e}")
+            return False
 
     # =========================================================================
     # BUSQUEDA Y FILTRADO

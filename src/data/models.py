@@ -244,6 +244,34 @@ class Fund(Base):
         }
 
 
+# =============================================================================
+# MODELO CATEGORY - Categorias personalizadas dinamicas
+# =============================================================================
+
+class Category(Base):
+    """
+    Modelo para categorias personalizadas de fondos.
+
+    Permite al usuario crear sus propias categorias para organizar fondos.
+    Las categorias se persisten en la base de datos.
+
+    Uso:
+        from src.data.models import Category
+
+        cat = Category(name='RV Tecnologia')
+        session.add(cat)
+        session.commit()
+    """
+    __tablename__ = 'categories'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<Category(name={self.name})>"
+
+
 # Constantes para filtros de UI
 FUND_CATEGORIES = [
     'Renta Variable',
@@ -281,8 +309,9 @@ DISTRIBUTION_POLICIES = {
     'distribution': 'Distribucion',
 }
 
-# Categorias personalizadas del usuario
-CUSTOM_CATEGORIES = [
+# Categorias personalizadas iniciales (seed data para tabla categories)
+# Estas se insertan en la BD al migrar, luego se leen dinamicamente
+DEFAULT_CUSTOM_CATEGORIES = [
     "RV Global",
     "RV USA",
     "RV Europa",
@@ -294,3 +323,6 @@ CUSTOM_CATEGORIES = [
     "Monetario",
     "Otros",
 ]
+
+# Alias para compatibilidad (deprecated, usar get_all_categories() del servicio)
+CUSTOM_CATEGORIES = DEFAULT_CUSTOM_CATEGORIES

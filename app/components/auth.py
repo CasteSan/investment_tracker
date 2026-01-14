@@ -34,8 +34,32 @@ def render_login_page() -> bool:
     st.set_page_config(
         page_title="Investment Tracker - Login",
         page_icon="🔐",
-        layout="centered"
+        layout="centered",
+        initial_sidebar_state="collapsed"
     )
+
+    # CSS para ocultar completamente el sidebar y la navegacion
+    st.markdown("""
+        <style>
+            /* Ocultar sidebar completo */
+            [data-testid="stSidebar"] {
+                display: none;
+            }
+            /* Ocultar boton de expandir sidebar */
+            [data-testid="collapsedControl"] {
+                display: none;
+            }
+            /* Ocultar navegacion de paginas en header */
+            [data-testid="stSidebarNavItems"] {
+                display: none;
+            }
+            /* Centrar contenido */
+            .block-container {
+                max-width: 400px;
+                padding-top: 5rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
     st.title("🔐 Investment Tracker")
     st.markdown("---")

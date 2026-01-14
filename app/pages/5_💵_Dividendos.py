@@ -13,6 +13,11 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Dividendos", "💵"):
+    st.stop()
+
 from src.dividends import DividendManager
 from src.database import Database
 
@@ -20,8 +25,6 @@ from src.database import Database
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.charts import plot_dividend_calendar, plot_allocation_donut
 from components.tables import create_dividends_table
-
-st.set_page_config(page_title="Dividendos", page_icon="💵", layout="wide")
 
 st.title("💵 Dividendos")
 

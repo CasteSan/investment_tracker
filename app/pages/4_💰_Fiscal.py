@@ -13,6 +13,11 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Fiscal", "💰"):
+    st.stop()
+
 from src.tax_calculator import TaxCalculator
 from src.portfolio import Portfolio
 from src.database import Database
@@ -21,8 +26,6 @@ from src.database import Database
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.charts import plot_gains_waterfall
 from components.tables import create_fiscal_table
-
-st.set_page_config(page_title="Fiscal", page_icon="💰", layout="wide")
 
 st.title("💰 Información Fiscal")
 

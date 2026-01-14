@@ -16,6 +16,11 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Dashboard", "📊"):
+    st.stop()
+
 # Importar servicio (unico punto de acceso a logica de negocio)
 from src.services.portfolio_service import PortfolioService
 
@@ -28,9 +33,6 @@ from components.charts import (
     plot_portfolio_treemap
 )
 from components.tables import create_positions_table, display_styled_dataframe
-
-# Configuracion de pagina
-st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
 st.title("📊 Dashboard de Cartera")
 

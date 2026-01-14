@@ -15,6 +15,11 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Catalogo de Fondos", "🔍"):
+    st.stop()
+
 from src.services.fund_service import FundService
 from src.providers.morningstar import FundNotFoundError, FundDataProviderError
 from src.data.models import FUND_RISK_LEVELS
@@ -53,13 +58,6 @@ def invalidate_fund_cache():
     get_cached_funds.clear()
     get_cached_fund_count.clear()
     get_cached_categories.clear()
-
-
-st.set_page_config(
-    page_title="Catalogo de Fondos",
-    page_icon="🔍",
-    layout="wide"
-)
 
 st.title("🔍 Catalogo Inteligente de Fondos")
 

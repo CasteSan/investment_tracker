@@ -12,27 +12,21 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
 from pathlib import Path
+import sys
+
+# Configurar path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Gestión de Operaciones", "➕"):
+    st.stop()
 
 # Imports de los módulos del proyecto
-try:
-    from src.database import Database
-    from src.logger import get_logger
-except ImportError:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from src.database import Database
-    from src.logger import get_logger
+from src.database import Database
+from src.logger import get_logger
 
 logger = get_logger(__name__)
-
-# ============================================================================
-# CONFIGURACIÓN DE LA PÁGINA
-# ============================================================================
-st.set_page_config(
-    page_title="Gestión de Operaciones - Investment Tracker",
-    page_icon="➕",
-    layout="wide"
-)
 
 st.title("➕ Gestión de Operaciones")
 

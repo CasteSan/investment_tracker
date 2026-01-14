@@ -21,10 +21,13 @@ from datetime import datetime, timedelta
 ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Benchmarks", "🎯"):
+    st.stop()
+
 from src.benchmarks import BenchmarkComparator, BENCHMARK_SYMBOLS, YFINANCE_AVAILABLE
 from src.market_data import MarketDataManager
-
-st.set_page_config(page_title="Benchmarks", page_icon="🎯", layout="wide")
 
 st.title("🎯 Comparación con Benchmarks")
 

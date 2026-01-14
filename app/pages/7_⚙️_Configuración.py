@@ -13,27 +13,21 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import os
+import sys
+
+# Configurar path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Autenticacion (DEBE ser antes de cualquier otro st.*)
+from app.components.auth import require_auth
+if not require_auth("Configuración", "⚙️"):
+    st.stop()
 
 # Imports de los módulos del proyecto
-try:
-    from src.database import Database
-    from src.logger import get_logger
-except ImportError:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from src.database import Database
-    from src.logger import get_logger
+from src.database import Database
+from src.logger import get_logger
 
 logger = get_logger(__name__)
-
-# ============================================================================
-# CONFIGURACIÓN DE LA PÁGINA
-# ============================================================================
-st.set_page_config(
-    page_title="Configuración - Investment Tracker",
-    page_icon="⚙️",
-    layout="wide"
-)
 
 st.title("⚙️ Configuración")
 st.markdown("Personaliza tu experiencia con Investment Tracker")

@@ -217,3 +217,43 @@ def init_session_state() -> None:
 
     if 'portfolio_name' not in st.session_state:
         st.session_state['portfolio_name'] = None
+
+
+def require_auth(page_title: str, page_icon: str, layout: str = "wide") -> bool:
+    """
+    Configura la pagina y verifica autenticacion.
+
+    Esta funcion DEBE llamarse al inicio de cada pagina en app/pages/.
+    Combina st.set_page_config con la verificacion de autenticacion.
+
+    Args:
+        page_title: Titulo de la pagina
+        page_icon: Icono de la pagina
+        layout: Layout de la pagina (default: "wide")
+
+    Returns:
+        True si puede continuar, False si debe detenerse (st.stop())
+
+    Uso:
+        from app.components.auth import require_auth
+
+        if not require_auth("Dashboard", "📊"):
+            st.stop()
+
+        # Resto de la pagina...
+    """
+    init_session_state()
+
+    # En modo local, no requiere autenticacion
+    if not is_cloud_environment():
+        st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
+        return True
+
+    # En modo cloud, verificar si esta autenticado
+    if AuthService.is_authenticated(st.session_state):
+        st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
+        return True
+
+    # No autenticado - mostrar pagina de login
+    render_login_page()
+    return False

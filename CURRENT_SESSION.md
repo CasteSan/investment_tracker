@@ -2,111 +2,131 @@
 
 ## Resumen
 
-**Version:** 1.2.0
-**Estado:** Multi-Portfolio implementado
+**Version:** 1.3.0
+**Estado:** Migración Cloud en progreso (Fase 1 completada)
 
-## Progreso
+## Progreso Cloud Migration
 
-| Fase | Estado | Descripcion |
+| Fase | Estado | Descripción |
 |------|--------|-------------|
-| Plan escalabilidad | ✅ 8/8 | Arquitectura hexagonal implementada |
-| Bug fixes | ✅ | get_transaction_by_id, calculate_cagr, yfinance |
-| Limpieza | ✅ | 39 archivos obsoletos eliminados |
-| Heatmap Dashboard | ✅ | Treemap interactivo con variacion diaria |
-| Etiquetas graficos | ✅ | Nombres de activos con truncado inteligente |
-| Multi-Portfolio | ✅ | Multiples carteras independientes |
+| Fase 1: Infraestructura Base | ✅ Completada | Environment detection + ProfileManager abstraction |
+| Fase 2: Modelo de Datos Unificado | ⏳ Pendiente | Portfolio model + portfolio_id |
+| Fase 3: Soporte PostgreSQL | ⏳ Pendiente | DATABASE_URL en Database class |
+| Fase 4: Script Migración | ⏳ Pendiente | SQLite → PostgreSQL |
+| Fase 5: Autenticación | ⏳ Pendiente | AuthService + Login UI |
+| Fase 6: Deployment | ⏳ Pendiente | Streamlit Cloud |
 
-## Ultimo Commit
+## Cambios Fase 1 (Actual)
 
+### Archivos Nuevos
+- `src/core/environment.py` - Detección de entorno (local vs cloud)
+- `src/core/cloud_profile_manager.py` - ProfileManager para modo cloud
+- `tests/unit/test_environment.py` - 25 tests para nuevos módulos
+
+### Archivos Modificados
+- `src/core/profile_manager.py` - Añadido ProfileManagerProtocol, refactorizado a LocalProfileManager
+- `src/core/__init__.py` - Exportaciones actualizadas
+
+### Conceptos Clave
+
+```python
+# Detección de entorno
+from src.core import is_cloud_environment, get_environment
+
+if is_cloud_environment():
+    # PostgreSQL + auth requerida
+    ...
+else:
+    # SQLite + sin auth
+    ...
+
+# ProfileManager polimórfico
+from src.core import get_profile_manager
+
+pm = get_profile_manager(session_state)
+if pm.can_switch_portfolio():
+    # Modo local: mostrar selector
+    ...
+else:
+    # Modo cloud: ocultar selector
+    ...
 ```
-02b4424 - docs: update changelog for v1.2.0 multi-portfolio release
-a87a8f6 - feat: add multi-portfolio support and fix db_path sync issues
-```
-
-**Cambios v1.2.0:**
-- Multi-Portfolio con ProfileManager (`src/core/profile_manager.py`)
-- Cada cartera usa SQLite separado en `data/portfolios/`
-- Selector de cartera en sidebar (crear/renombrar)
-- Migracion automatica de `database.db` a `portfolios/Principal.db`
-- Fix: todas las paginas usan `db_path` de session_state
-- Fix: Benchmarks filtra dias sin precios reales (`has_market_prices`)
-- 184 tests unitarios (+21 nuevos)
 
 ## Estructura Actual
 
 ```
 investment_tracker/
 ├── api/                    # FastAPI
-├── app/                    # Streamlit (8 paginas)
-├── docs/architecture/      # Documentacion tecnica
+├── app/                    # Streamlit (8 páginas)
+├── docs/                   # Documentación
 ├── scripts/                # Scripts utilitarios
-├── src/                    # Codigo fuente
+├── src/
+│   ├── core/
+│   │   ├── analytics/      # Métricas (Sharpe, Beta, etc.)
+│   │   ├── environment.py  # [NEW] Detección entorno
+│   │   ├── cloud_profile_manager.py  # [NEW] Cloud PM
+│   │   ├── profile_manager.py  # [UPDATED] Local PM + Protocol
+│   │   └── utils.py
 │   ├── services/           # PortfolioService, FundService
-│   ├── core/               # ProfileManager, utils.py, analytics/
 │   └── data/               # Database, Repositories
-├── data/
-│   └── portfolios/         # SQLite files por cartera (*.db)
-├── tests/
-│   ├── unit/               # 184 tests
-│   └── scripts/            # Tests de scripts
+├── data/portfolios/        # SQLite files (modo local)
+├── tests/unit/             # 207 tests
+├── CLOUD_MIGRATION_PLAN.md # Plan detallado
 ├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── LICENSE
-```
-
-## Archivos Clave Multi-Portfolio
-
-```python
-# ProfileManager - Gestor de carteras
-from src.core.profile_manager import ProfileManager, get_profile_manager
-
-pm = get_profile_manager()
-pm.create_profile('NuevaCartera')
-pm.get_db_path('NuevaCartera')  # Ruta al SQLite
-pm.rename_profile('Viejo', 'Nuevo')
-
-# En Streamlit - usar db_path de session_state
-db_path = st.session_state.get('db_path')
-service = PortfolioService(db_path=db_path)
-```
-
-## Comandos Principales
-
-```bash
-# App
-streamlit run app/main.py
-uvicorn api.main:app --reload
-
-# Tests
-python -m pytest tests/unit/ -v   # 184 tests
-
-# Verificar
-python -c "from src.core import ProfileManager; print('OK')"
+└── CURRENT_SESSION.md      # Este archivo
 ```
 
 ## Tests
 
 ```
-184 passed, 2 skipped in 24s
+207 passed, 2 skipped in 32s
 
-- test_analytics.py: 32 tests
-- test_fund_repository.py: 37 tests
-- test_fund_service.py: 28 tests
-- test_portfolio_service.py: 55 tests
-- test_profile_manager.py: 21 tests (nuevo)
-- test_utils.py: 11 tests
+Nuevos tests (Fase 1):
+- test_environment.py: 25 tests
+  - TestEnvironmentDetection: 4 tests
+  - TestCloudProfileManager: 14 tests
+  - TestProfileManagerProtocol: 2 tests
+  - TestGetProfileManagerFactory: 4 tests
+  - TestLocalProfileManagerCanSwitch: 1 test
 ```
 
-## Limitaciones Conocidas
+## Comandos
 
-- **yfinance + ISINs europeos:** Fondos mutuos no disponibles
-- **Precios fondos:** Solo ETFs/acciones con ticker Yahoo
-- **Windows SQLite:** Tests de delete/rename skipped por file locking
+```bash
+# App local
+streamlit run app/main.py
 
-## Proximos Pasos Sugeridos
+# Tests
+python -m pytest tests/unit/ -v
 
-1. **API de precios alternativa** - Morningstar/Investing.com
-2. **Autenticacion API** - JWT tokens
-3. **Tests de integracion** - TestClient FastAPI
-4. **CI/CD** - GitHub Actions
-5. **Docker** - Containerizacion
+# Verificar imports
+python -c "from src.core import is_cloud_environment; print(is_cloud_environment())"
+```
+
+## Próximo Paso
+
+**Fase 2: Modelo de Datos Unificado**
+- Crear modelo `Portfolio` en `src/data/models.py`
+- Añadir `portfolio_id` a Transaction y Dividend
+- Crear migración SQLite
+- Actualizar repositories
+
+## Arquitectura Híbrida
+
+```
+                    ┌─────────────────┐
+                    │  get_profile_   │
+                    │    manager()    │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼ DATABASE_URL?               ▼ No DATABASE_URL
+    ┌─────────────────────┐       ┌─────────────────────┐
+    │ CloudProfileManager │       │ LocalProfileManager │
+    ├─────────────────────┤       ├─────────────────────┤
+    │ can_switch: False   │       │ can_switch: True    │
+    │ portfolios: 1       │       │ portfolios: N       │
+    │ db: PostgreSQL      │       │ db: SQLite files    │
+    └─────────────────────┘       └─────────────────────┘
+```

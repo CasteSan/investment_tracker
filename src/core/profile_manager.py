@@ -1,28 +1,29 @@
 """
 ProfileManager - Gestor de perfiles/carteras múltiples
 
-Permite gestionar múltiples carteras independientes usando archivos
-SQLite separados para cada una.
+Arquitectura Híbrida:
+- LocalProfileManager: Múltiples archivos SQLite, selector libre
+- CloudProfileManager: PostgreSQL, cartera fija por usuario
 
-Uso:
-    from src.core.profile_manager import ProfileManager
+El ProfileManagerProtocol define la interfaz común que ambos implementan.
 
-    pm = ProfileManager()
+Uso Local:
+    from src.core.profile_manager import get_profile_manager
 
-    # Listar carteras disponibles
+    pm = get_profile_manager()
     profiles = pm.list_profiles()
-    # [{'name': 'Personal', 'path': '...', 'size_mb': 0.5}, ...]
-
-    # Crear nueva cartera
-    pm.create_profile('Padres')
-
-    # Obtener ruta para usar con servicios
     db_path = pm.get_db_path('Personal')
-    service = PortfolioService(db_path=db_path)
+
+Uso Cloud:
+    # El factory detecta automáticamente el entorno
+    pm = get_profile_manager(session_state)
+    if pm.can_switch_portfolio():
+        # Mostrar selector
+        ...
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Protocol, runtime_checkable
 from datetime import datetime
 import shutil
 
@@ -40,18 +41,52 @@ DEFAULT_PORTFOLIOS_DIR = Path(__file__).parent.parent.parent / 'data' / 'portfol
 DEFAULT_PROFILE_NAME = 'Principal'
 
 
-class ProfileManager:
+@runtime_checkable
+class ProfileManagerProtocol(Protocol):
     """
-    Gestor de perfiles de cartera.
+    Protocolo que define la interfaz común para gestores de perfiles.
+
+    Tanto LocalProfileManager como CloudProfileManager implementan
+    esta interfaz, permitiendo código polimórfico en la UI.
+    """
+
+    def list_profiles(self) -> List[Dict]:
+        """Lista todos los perfiles disponibles."""
+        ...
+
+    def get_profile_names(self) -> List[str]:
+        """Devuelve solo los nombres de los perfiles."""
+        ...
+
+    def profile_exists(self, name: str) -> bool:
+        """Verifica si un perfil existe."""
+        ...
+
+    def get_db_path(self, profile_name: str) -> str:
+        """Obtiene la ruta/identificador de la BD de un perfil."""
+        ...
+
+    def get_default_profile(self) -> Optional[str]:
+        """Obtiene el nombre del perfil por defecto."""
+        ...
+
+    def can_switch_portfolio(self) -> bool:
+        """Indica si el usuario puede cambiar de cartera."""
+        ...
+
+
+class LocalProfileManager:
+    """
+    Gestor de perfiles para modo LOCAL.
 
     Cada perfil es un archivo SQLite independiente en data/portfolios/.
-    Esto permite gestionar múltiples carteras (personal, familia, clientes)
-    sin modificar la estructura de las tablas existentes.
+    Permite gestionar múltiples carteras (personal, familia, clientes)
+    con libertad total para cambiar entre ellas.
     """
 
     def __init__(self, portfolios_dir: str = None):
         """
-        Inicializa el gestor de perfiles.
+        Inicializa el gestor de perfiles local.
 
         Args:
             portfolios_dir: Directorio donde se almacenan las carteras.
@@ -68,7 +103,7 @@ class ProfileManager:
         # Verificar si hay que migrar la BD principal existente
         self._check_migration()
 
-        logger.info(f"ProfileManager inicializado: {self.portfolios_dir}")
+        logger.info(f"LocalProfileManager inicializado: {self.portfolios_dir}")
 
     def _check_migration(self):
         """
@@ -84,6 +119,17 @@ class ProfileManager:
             logger.info(f"Migrando {old_db_path} -> {new_db_path}")
             shutil.copy2(old_db_path, new_db_path)
             logger.info(f"Migración completada: {DEFAULT_PROFILE_NAME}")
+
+    def can_switch_portfolio(self) -> bool:
+        """
+        Indica si el usuario puede cambiar de cartera.
+
+        En modo local, siempre se permite cambiar.
+
+        Returns:
+            True (siempre en modo local)
+        """
+        return True
 
     def list_profiles(self) -> List[Dict]:
         """
@@ -332,18 +378,49 @@ class ProfileManager:
         return cleaned.strip()
 
 
-# Instancia global para uso rápido
-_default_manager = None
+# Alias para compatibilidad con código existente
+ProfileManager = LocalProfileManager
 
 
-def get_profile_manager() -> ProfileManager:
+# Instancia global para uso rápido (solo modo local)
+_default_manager: Optional[LocalProfileManager] = None
+
+
+def get_profile_manager(session_state: dict = None) -> ProfileManagerProtocol:
     """
-    Obtiene la instancia global del ProfileManager.
+    Obtiene el ProfileManager adecuado según el entorno.
+
+    En modo local, retorna LocalProfileManager (singleton).
+    En modo cloud, retorna CloudProfileManager con el portfolio del usuario.
+
+    Args:
+        session_state: Estado de sesión de Streamlit (requerido en cloud)
 
     Returns:
-        Instancia de ProfileManager
+        Instancia de ProfileManager según el entorno
     """
-    global _default_manager
-    if _default_manager is None:
-        _default_manager = ProfileManager()
-    return _default_manager
+    from src.core.environment import is_cloud_environment
+
+    if is_cloud_environment():
+        # Modo cloud: usar CloudProfileManager
+        from src.core.cloud_profile_manager import CloudProfileManager
+
+        if session_state is None:
+            raise ValueError("session_state es requerido en modo cloud")
+
+        portfolio_id = session_state.get('portfolio_id')
+        username = session_state.get('username')
+
+        if portfolio_id is None:
+            raise ValueError("portfolio_id no encontrado en session_state")
+
+        return CloudProfileManager(
+            portfolio_id=portfolio_id,
+            username=username
+        )
+    else:
+        # Modo local: usar singleton de LocalProfileManager
+        global _default_manager
+        if _default_manager is None:
+            _default_manager = LocalProfileManager()
+        return _default_manager

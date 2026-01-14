@@ -1,22 +1,33 @@
 """
 Providers Module - Proveedores de Datos Externos
 
-Este módulo contendrá las abstracciones e implementaciones para
+Este módulo contiene las abstracciones e implementaciones para
 obtener datos de fuentes externas.
 
-Estructura planificada:
-- base.py: Interfaz IMarketDataProvider (Protocol)
-- yahoo.py: YahooFinanceProvider (actual market_data.py)
-- morningstar.py: MorningstarProvider (futuro, para fondos)
-- alpha_vantage.py: AlphaVantageProvider (futuro, alternativa)
+Estructura:
+- morningstar.py: FundDataProvider (datos de fondos via mstarpy)
+- base.py: Interfaz IMarketDataProvider (Protocol) - futuro
+- yahoo.py: YahooFinanceProvider (actual market_data.py) - futuro
 
 Patrón: Strategy + Adapter
 
-Uso futuro:
-    from src.providers import YahooFinanceProvider
+Uso:
+    from src.providers import FundDataProvider
 
-    provider = YahooFinanceProvider()
-    prices = provider.get_historical_prices("AAPL", start_date, end_date)
+    provider = FundDataProvider()
+    data = provider.get_fund_data('IE00B3RBWM25')
 """
 
-__all__ = []
+from src.providers.morningstar import (
+    FundDataProvider,
+    FundDataProviderError,
+    FundNotFoundError,
+    get_fund_provider,
+)
+
+__all__ = [
+    'FundDataProvider',
+    'FundDataProviderError',
+    'FundNotFoundError',
+    'get_fund_provider',
+]

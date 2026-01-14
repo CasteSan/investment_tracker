@@ -27,11 +27,21 @@ try:
     from src.services.base import BaseService
     from src.data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
     from src.data.repositories.fund_repository import FundRepository
+    from src.providers.morningstar import (
+        FundDataProvider,
+        FundNotFoundError,
+        FundDataProviderError
+    )
     from src.logger import get_logger
 except ImportError:
     from services.base import BaseService
     from data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
     from data.repositories.fund_repository import FundRepository
+    from providers.morningstar import (
+        FundDataProvider,
+        FundNotFoundError,
+        FundDataProviderError
+    )
     from logger import get_logger
 
 logger = get_logger(__name__)
@@ -379,12 +389,79 @@ class FundService(BaseService):
         return formatted
 
     # =========================================================================
-    # IMPORTACION DE DATOS
+    # IMPORTACION DESDE MORNINGSTAR
+    # =========================================================================
+
+    def fetch_fund_preview(self, isin: str) -> Dict[str, Any]:
+        """
+        Obtiene datos de un fondo desde Morningstar sin guardarlo.
+
+        Util para mostrar una vista previa antes de guardar en BD.
+
+        Args:
+            isin: Codigo ISIN del fondo (ej: 'IE00B3RBWM25')
+
+        Returns:
+            Dict con datos del fondo desde Morningstar
+
+        Raises:
+            FundNotFoundError: Si el fondo no se encuentra
+            FundDataProviderError: Si hay error en la consulta
+        """
+        provider = FundDataProvider()
+        data = provider.get_fund_data(isin)
+        logger.info(f"Obtenidos datos de Morningstar para {isin}: {data.get('name')}")
+        return data
+
+    def fetch_and_import_fund(self, isin: str) -> Fund:
+        """
+        Obtiene datos de Morningstar y guarda el fondo en BD.
+
+        Orquesta el flujo completo:
+        1. Consulta datos de Morningstar via FundDataProvider
+        2. Mapea y guarda en BD via FundRepository
+
+        Args:
+            isin: Codigo ISIN del fondo (ej: 'IE00B3RBWM25')
+
+        Returns:
+            Fund guardado en BD
+
+        Raises:
+            FundNotFoundError: Si el fondo no se encuentra
+            FundDataProviderError: Si hay error en la consulta
+        """
+        # Obtener datos del provider
+        provider = FundDataProvider()
+        data = provider.get_fund_data(isin)
+
+        # Guardar en BD
+        fund = self.repository.upsert_from_provider(data)
+        logger.info(f"Fondo importado: {fund.isin} - {fund.name}")
+
+        return fund
+
+    def get_fund_nav_history(self, isin: str, years: int = 3) -> pd.DataFrame:
+        """
+        Obtiene historico de NAV desde Morningstar.
+
+        Args:
+            isin: Codigo ISIN del fondo
+            years: Anos de historia (default 3)
+
+        Returns:
+            DataFrame con columnas: date, nav, totalReturn
+        """
+        provider = FundDataProvider()
+        return provider.get_nav_history(isin, years=years)
+
+    # =========================================================================
+    # IMPORTACION DE DATOS (MANUAL)
     # =========================================================================
 
     def import_fund(self, fund_data: Dict[str, Any]) -> Fund:
         """
-        Importa o actualiza un fondo.
+        Importa o actualiza un fondo manualmente.
 
         Args:
             fund_data: Dict con datos del fondo (debe incluir 'isin')

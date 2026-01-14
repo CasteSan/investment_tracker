@@ -24,6 +24,8 @@ Uso:
     db.close()
 """
 
+import json
+from datetime import date
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
@@ -474,3 +476,70 @@ class FundRepository:
         logger.info(f"Bulk upsert: {inserted} insertados, {updated} actualizados")
 
         return {'inserted': inserted, 'updated': updated}
+
+    def upsert_from_provider(self, provider_data: Dict[str, Any]) -> Fund:
+        """
+        Inserta o actualiza un fondo desde datos del FundDataProvider.
+
+        Maneja la conversion de campos JSON (holdings, allocation) y
+        mapea los campos del provider al modelo Fund.
+
+        Args:
+            provider_data: Diccionario devuelto por FundDataProvider.get_fund_data()
+
+        Returns:
+            El fondo insertado o actualizado
+        """
+        # Mapear campos del provider al modelo Fund
+        fund_data = {
+            'isin': provider_data.get('isin'),
+            'name': provider_data.get('name'),
+            'currency': provider_data.get('currency', 'EUR'),
+            'ter': provider_data.get('ter'),
+            'ongoing_charges': provider_data.get('ongoing_charges'),
+            'management_fee': provider_data.get('management_fee'),
+            'inception_date': provider_data.get('inception_date'),
+            'manager': provider_data.get('manager'),
+            'manager_country': provider_data.get('manager_country'),
+            'fund_domicile': provider_data.get('fund_domicile'),
+            'risk_level': provider_data.get('risk_level'),
+            'morningstar_category': provider_data.get('morningstar_category') or provider_data.get('category_name'),
+            'asset_class': provider_data.get('asset_class'),
+            'aum': provider_data.get('aum'),
+            'dividend_frequency': provider_data.get('dividend_frequency'),
+            'distribution_policy': provider_data.get('distribution_policy'),
+            'benchmark_name': provider_data.get('benchmark_name'),
+            'url': provider_data.get('url'),
+            # Rentabilidades
+            'return_ytd': provider_data.get('return_ytd'),
+            'return_1y': provider_data.get('return_1y'),
+            'return_3y': provider_data.get('return_3y'),
+            'return_5y': provider_data.get('return_5y'),
+            'return_10y': provider_data.get('return_10y'),
+            # Volatilidades
+            'volatility_1y': provider_data.get('volatility_1y'),
+            'volatility_3y': provider_data.get('volatility_3y'),
+            'volatility_5y': provider_data.get('volatility_5y'),
+            # Sharpe ratios
+            'sharpe_1y': provider_data.get('sharpe_1y'),
+            'sharpe_3y': provider_data.get('sharpe_3y'),
+            'sharpe_5y': provider_data.get('sharpe_5y'),
+            # Metadatos
+            'source': 'morningstar',
+            'external_id': provider_data.get('morningstar_code'),
+            'data_date': date.today(),
+        }
+
+        # Serializar campos JSON
+        holdings = provider_data.get('holdings')
+        if holdings:
+            fund_data['top_holdings'] = json.dumps(holdings)
+
+        allocation = provider_data.get('allocation')
+        if allocation:
+            fund_data['asset_allocation'] = json.dumps(allocation)
+
+        # Filtrar valores None para evitar sobrescribir datos existentes
+        fund_data = {k: v for k, v in fund_data.items() if v is not None}
+
+        return self.upsert(fund_data)

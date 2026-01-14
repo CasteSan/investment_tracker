@@ -8,7 +8,9 @@ permanecen en database.py por compatibilidad.
 Sesion 6 del plan de escalabilidad.
 """
 
+import json
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Text, Boolean, Index
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -93,9 +95,17 @@ class Fund(Base):
     return_10y = Column(Float)  # 10 anos (anualizado)
 
     # Volatilidad y metricas de riesgo
+    volatility_1y = Column(Float)  # Volatilidad 1 ano anualizada
     volatility_3y = Column(Float)  # Volatilidad 3 anos anualizada
+    volatility_5y = Column(Float)  # Volatilidad 5 anos anualizada
+    sharpe_1y = Column(Float)  # Ratio Sharpe 1 ano
     sharpe_3y = Column(Float)  # Ratio Sharpe 3 anos
+    sharpe_5y = Column(Float)  # Ratio Sharpe 5 anos
     max_drawdown_3y = Column(Float)  # Max drawdown 3 anos
+
+    # Datos estructurados (JSON serializado)
+    top_holdings = Column(Text)  # JSON: [{name, weight, sector}, ...]
+    asset_allocation = Column(Text)  # JSON: {cash, equity, bond, ...}
 
     # Tamano y liquidez
     aum = Column(Float)  # Assets Under Management (en millones EUR)
@@ -133,6 +143,33 @@ class Fund(Base):
     def __repr__(self):
         return f"<Fund(isin={self.isin}, name={self.short_name or self.name[:30]})>"
 
+    # Helpers para campos JSON
+    def get_top_holdings(self) -> list:
+        """Deserializa top_holdings de JSON."""
+        if self.top_holdings:
+            try:
+                return json.loads(self.top_holdings)
+            except json.JSONDecodeError:
+                return []
+        return []
+
+    def set_top_holdings(self, holdings: list) -> None:
+        """Serializa top_holdings a JSON."""
+        self.top_holdings = json.dumps(holdings) if holdings else None
+
+    def get_asset_allocation(self) -> dict:
+        """Deserializa asset_allocation de JSON."""
+        if self.asset_allocation:
+            try:
+                return json.loads(self.asset_allocation)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_asset_allocation(self, allocation: dict) -> None:
+        """Serializa asset_allocation a JSON."""
+        self.asset_allocation = json.dumps(allocation) if allocation else None
+
     def to_dict(self) -> dict:
         """Convierte el modelo a diccionario."""
         return {
@@ -165,9 +202,15 @@ class Fund(Base):
             'return_3y': self.return_3y,
             'return_5y': self.return_5y,
             'return_10y': self.return_10y,
+            'volatility_1y': self.volatility_1y,
             'volatility_3y': self.volatility_3y,
+            'volatility_5y': self.volatility_5y,
+            'sharpe_1y': self.sharpe_1y,
             'sharpe_3y': self.sharpe_3y,
+            'sharpe_5y': self.sharpe_5y,
             'max_drawdown_3y': self.max_drawdown_3y,
+            'top_holdings': self.get_top_holdings(),
+            'asset_allocation': self.get_asset_allocation(),
             'aum': self.aum,
             'min_investment': self.min_investment,
             'min_additional': self.min_additional,
@@ -187,13 +230,14 @@ class Fund(Base):
             'id': self.id,
             'isin': self.isin,
             'name': self.short_name or self.name,
-            'category': self.category,
+            'category': self.morningstar_category or self.category,
             'manager': self.manager,
             'ter': self.ter,
             'risk_level': self.risk_level,
             'morningstar_rating': self.morningstar_rating,
             'return_1y': self.return_1y,
             'return_3y': self.return_3y,
+            'volatility_1y': self.volatility_1y,
         }
 
 

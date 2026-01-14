@@ -142,15 +142,63 @@ with tab_import:
             st.write(f"**Vol 1A:** {vol_1y:.2f}%" if vol_1y else "**Vol 1A:** -")
             st.write(f"**Sharpe 1A:** {sharpe_1y:.2f}" if sharpe_1y else "**Sharpe 1A:** -")
 
-        # Asset Allocation y Holdings
+        # Graficos: Sectores, Paises, Holdings
+        allocation = preview.get('allocation', {})
+
+        # Fila 1: Sectores y Paises
+        col_sectors, col_countries = st.columns(2)
+
+        with col_sectors:
+            sectors = allocation.get('sectors', [])
+            if sectors:
+                st.markdown("**Sectores**")
+                df_sectors = pd.DataFrame(sectors)
+                fig = px.pie(
+                    df_sectors,
+                    values='weight',
+                    names='name',
+                    hole=0.4,
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig.update_layout(
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    height=250,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.3, font=dict(size=10))
+                )
+                fig.update_traces(textposition='inside', textinfo='percent')
+                st.plotly_chart(fig, use_container_width=True)
+
+        with col_countries:
+            countries = allocation.get('countries', [])
+            if countries:
+                st.markdown("**Paises (Top 10)**")
+                df_countries = pd.DataFrame(countries[:10])
+                fig = px.bar(
+                    df_countries,
+                    x='weight',
+                    y='name',
+                    orientation='h',
+                    color='weight',
+                    color_continuous_scale='Blues'
+                )
+                fig.update_layout(
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    height=250,
+                    xaxis_title="Peso %",
+                    yaxis_title="",
+                    showlegend=False,
+                    coloraxis_showscale=False
+                )
+                fig.update_yaxes(autorange="reversed")
+                st.plotly_chart(fig, use_container_width=True)
+
+        # Fila 2: Asset Allocation y Holdings
         col_alloc, col_hold = st.columns(2)
 
         with col_alloc:
-            allocation = preview.get('allocation', {})
             if allocation:
                 st.markdown("**Asset Allocation**")
-
-                # Preparar datos para grafico
                 alloc_data = []
                 labels_map = {
                     'us_equity': 'RV USA',
@@ -161,7 +209,7 @@ with tab_import:
                 }
                 for key, label in labels_map.items():
                     val = allocation.get(key, 0)
-                    if val > 0.1:  # Solo mostrar si > 0.1%
+                    if val > 0.1:
                         alloc_data.append({'Tipo': label, 'Peso': val})
 
                 if alloc_data:
@@ -174,8 +222,8 @@ with tab_import:
                         color_discrete_sequence=px.colors.qualitative.Set2
                     )
                     fig.update_layout(
-                        margin=dict(t=20, b=20, l=20, r=20),
-                        height=250,
+                        margin=dict(t=10, b=10, l=10, r=10),
+                        height=220,
                         showlegend=True,
                         legend=dict(orientation="h", yanchor="bottom", y=-0.2)
                     )
@@ -186,7 +234,6 @@ with tab_import:
             holdings = preview.get('holdings', [])
             if holdings:
                 st.markdown("**Top 10 Holdings**")
-
                 df_hold = pd.DataFrame(holdings)
                 df_hold = df_hold.rename(columns={
                     'name': 'Nombre',
@@ -194,12 +241,11 @@ with tab_import:
                     'sector': 'Sector'
                 })
                 df_hold['Peso %'] = df_hold['Peso %'].apply(lambda x: f"{x:.2f}%")
-
                 st.dataframe(
                     df_hold,
                     use_container_width=True,
                     hide_index=True,
-                    height=250
+                    height=220
                 )
 
         st.divider()
@@ -392,15 +438,65 @@ with tab_catalog:
                             use_container_width=True
                         )
 
-                    # Graficos
+                    # Graficos - Fila 1: Sectores y Paises
+                    allocation = fund.get_asset_allocation()
+
+                    col_sec, col_cty = st.columns(2)
+
+                    with col_sec:
+                        sectors = allocation.get('sectors', []) if allocation else []
+                        if sectors:
+                            st.markdown("**Sectores**")
+                            df_sec = pd.DataFrame(sectors)
+                            fig = px.pie(
+                                df_sec,
+                                values='weight',
+                                names='name',
+                                hole=0.4,
+                                color_discrete_sequence=px.colors.qualitative.Pastel
+                            )
+                            fig.update_layout(
+                                margin=dict(t=10, b=10, l=10, r=10),
+                                height=250,
+                                legend=dict(orientation="h", yanchor="bottom", y=-0.25, font=dict(size=9))
+                            )
+                            fig.update_traces(textposition='inside', textinfo='percent')
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("Sin datos de sectores")
+
+                    with col_cty:
+                        countries = allocation.get('countries', []) if allocation else []
+                        if countries:
+                            st.markdown("**Paises (Top 10)**")
+                            df_cty = pd.DataFrame(countries[:10])
+                            fig = px.bar(
+                                df_cty,
+                                x='weight',
+                                y='name',
+                                orientation='h',
+                                color='weight',
+                                color_continuous_scale='Greens'
+                            )
+                            fig.update_layout(
+                                margin=dict(t=10, b=10, l=10, r=10),
+                                height=250,
+                                xaxis_title="Peso %",
+                                yaxis_title="",
+                                showlegend=False,
+                                coloraxis_showscale=False
+                            )
+                            fig.update_yaxes(autorange="reversed")
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("Sin datos de paises")
+
+                    # Graficos - Fila 2: Asset Allocation y Holdings
                     col_chart1, col_chart2 = st.columns(2)
 
                     with col_chart1:
-                        # Asset Allocation
-                        allocation = fund.get_asset_allocation()
                         if allocation:
                             st.markdown("**Asset Allocation**")
-
                             alloc_data = []
                             labels = {
                                 'us_equity': 'RV USA',
@@ -424,7 +520,7 @@ with tab_catalog:
                                 )
                                 fig.update_layout(
                                     margin=dict(t=10, b=10, l=10, r=10),
-                                    height=300,
+                                    height=250,
                                     legend=dict(orientation="h", yanchor="bottom", y=-0.15)
                                 )
                                 st.plotly_chart(fig, use_container_width=True)
@@ -432,14 +528,10 @@ with tab_catalog:
                             st.info("Sin datos de allocation")
 
                     with col_chart2:
-                        # Top Holdings
                         holdings = fund.get_top_holdings()
                         if holdings:
                             st.markdown("**Top 10 Holdings**")
-
                             df_holdings = pd.DataFrame(holdings)
-
-                            # Grafico de barras horizontal
                             fig = px.bar(
                                 df_holdings.head(10),
                                 x='weight',
@@ -450,7 +542,7 @@ with tab_catalog:
                             )
                             fig.update_layout(
                                 margin=dict(t=10, b=10, l=10, r=10),
-                                height=300,
+                                height=250,
                                 xaxis_title="Peso %",
                                 yaxis_title="",
                                 showlegend=False,

@@ -37,25 +37,83 @@ class FundNotFoundError(FundDataProviderError):
     pass
 
 
+def _cumulative_to_annualized(cumulative_return: float, years: int) -> float:
+    """
+    Convierte retorno acumulado a anualizado.
+
+    Args:
+        cumulative_return: Retorno acumulado en porcentaje (ej: 54.44 para 54.44%)
+        years: Numero de anos
+
+    Returns:
+        Retorno anualizado en porcentaje
+    """
+    if cumulative_return is None or years <= 0:
+        return None
+    # Formula: ((1 + r)^(1/n) - 1) * 100
+    return (pow(1 + cumulative_return / 100, 1 / years) - 1) * 100
+
+
 class FundDataProvider:
     """
     Proveedor de datos de fondos via Morningstar.
 
     Encapsula mstarpy para obtener informacion de fondos/ETFs:
     - Info basica (nombre, ISIN, categoria)
-    - Metricas de rendimiento (1a, 3a, 5a)
+    - Metricas de rendimiento (1a, 3a, 5a) - ANUALIZADAS
     - Metricas de riesgo (volatilidad, Sharpe)
-    - Cartera (asset allocation, top holdings)
+    - Cartera (asset allocation, sectores, paises, top holdings)
     - Historico de precios (NAV)
 
     Args:
-        language: Idioma para los datos ('en-gb', 'es-es', etc.)
+        language: Idioma para los datos ('en-gb', 'es', etc.)
 
     Ejemplo:
         >>> provider = FundDataProvider()
         >>> data = provider.get_fund_data('IE00B3RBWM25')
         >>> print(f"{data['name']}: TER {data['ter']}%")
     """
+
+    # Mapeo de nombres de paises
+    COUNTRY_NAMES = {
+        'unitedStates': 'Estados Unidos',
+        'japan': 'Japon',
+        'china': 'China',
+        'unitedKingdom': 'Reino Unido',
+        'canada': 'Canada',
+        'switzerland': 'Suiza',
+        'taiwan': 'Taiwan',
+        'france': 'Francia',
+        'germany': 'Alemania',
+        'india': 'India',
+        'australia': 'Australia',
+        'southKorea': 'Corea del Sur',
+        'netherlands': 'Paises Bajos',
+        'sweden': 'Suecia',
+        'spain': 'Espana',
+        'italy': 'Italia',
+        'brazil': 'Brasil',
+        'hongKong': 'Hong Kong',
+        'singapore': 'Singapur',
+        'southAfrica': 'Sudafrica',
+        'denmark': 'Dinamarca',
+        'mexico': 'Mexico',
+    }
+
+    # Mapeo de nombres de sectores
+    SECTOR_NAMES = {
+        'basicMaterials': 'Materiales Basicos',
+        'consumerCyclical': 'Consumo Ciclico',
+        'financialServices': 'Servicios Financieros',
+        'realEstate': 'Inmobiliario',
+        'communicationServices': 'Comunicaciones',
+        'energy': 'Energia',
+        'industrials': 'Industrial',
+        'technology': 'Tecnologia',
+        'consumerDefensive': 'Consumo Defensivo',
+        'healthcare': 'Salud',
+        'utilities': 'Utilities',
+    }
 
     def __init__(self, language: str = 'en-gb'):
         if mstarpy is None:
@@ -75,11 +133,10 @@ class FundDataProvider:
         Returns:
             dict con toda la informacion del fondo:
             - info: datos basicos
-            - returns: rentabilidades
+            - returns: rentabilidades ANUALIZADAS
             - risk: metricas de riesgo
-            - allocation: asset allocation
-            - holdings: top 10 holdings
-            - nav_history: historico NAV (3 anos)
+            - allocation: asset allocation con sectores y paises
+            - holdings: top 10 holdings (limitado por API)
 
         Raises:
             FundNotFoundError: Si no se encuentra el fondo
@@ -207,8 +264,12 @@ class FundDataProvider:
                 data['dividend_frequency'] = freq_map.get(dist_freq, dist_freq)
                 data['distribution_policy'] = 'distribution' if snapshot.get('IncomeDistribution') == 'true' else 'accumulation'
 
-            # URL
-            data['url'] = f"https://www.morningstar.es/es/etf/snapshot/snapshot.aspx?id={fund.code}"
+            # URL correcta segun tipo de activo
+            asset_type = fund.asset_type or 'fund'
+            if asset_type == 'etf':
+                data['url'] = f"https://www.morningstar.es/es/etf/snapshot/snapshot.aspx?id={fund.code}"
+            else:
+                data['url'] = f"https://www.morningstar.es/es/funds/snapshot/snapshot.aspx?id={fund.code}"
 
         except Exception as e:
             logger.warning(f"Error obteniendo snapshot: {e}")
@@ -216,7 +277,13 @@ class FundDataProvider:
         return data
 
     def _get_return_data(self, fund) -> dict:
-        """Extrae datos de rentabilidad."""
+        """
+        Extrae datos de rentabilidad.
+
+        IMPORTANTE: Los valores de trailingReturn son ACUMULADOS.
+        - 1Y: Ya es anualizado por naturaleza
+        - 3Y, 5Y, 10Y: Convertimos de acumulado a anualizado
+        """
         data = {}
         try:
             returns = fund.trailingReturn()
@@ -234,11 +301,22 @@ class FundDataProvider:
                     return float(val) if val else None
                 return None
 
+            # YTD y 1Y son directos (ya anualizados)
             data['return_ytd'] = get_return('YearToDate')
             data['return_1y'] = get_return('1Year')
-            data['return_3y'] = get_return('3Year')
-            data['return_5y'] = get_return('5Year')
-            data['return_10y'] = get_return('10Year')
+
+            # 3Y, 5Y, 10Y: convertir de acumulado a anualizado
+            ret_3y_cum = get_return('3Year')
+            ret_5y_cum = get_return('5Year')
+            ret_10y_cum = get_return('10Year')
+
+            data['return_3y'] = _cumulative_to_annualized(ret_3y_cum, 3)
+            data['return_5y'] = _cumulative_to_annualized(ret_5y_cum, 5)
+            data['return_10y'] = _cumulative_to_annualized(ret_10y_cum, 10)
+
+            # Guardar tambien los acumulados para referencia
+            data['return_3y_cumulative'] = ret_3y_cum
+            data['return_5y_cumulative'] = ret_5y_cum
 
         except Exception as e:
             logger.warning(f"Error obteniendo returns: {e}")
@@ -278,14 +356,22 @@ class FundDataProvider:
         return data
 
     def _get_allocation_data(self, fund) -> dict:
-        """Extrae asset allocation."""
+        """
+        Extrae asset allocation completo incluyendo sectores y paises.
+
+        Returns:
+            dict con:
+            - cash, us_equity, non_us_equity, bond, other, equity (asset types)
+            - sectors: lista de {name, weight}
+            - countries: lista de {name, weight}
+            - regions: dict con regiones
+        """
         allocation = {}
         try:
+            # Asset allocation basico
             alloc_map = fund.allocationMap()
-
             alloc_data = alloc_map.get('allocationMap', {})
 
-            # Extraer valores netos
             mapping = {
                 'cash': 'AssetAllocCash',
                 'us_equity': 'AssetAllocUSEquity',
@@ -299,21 +385,87 @@ class FundDataProvider:
                 val = item.get('netAllocation')
                 allocation[key] = float(val) if val else 0.0
 
-            # Calcular equity total
             allocation['equity'] = allocation.get('us_equity', 0) + allocation.get('non_us_equity', 0)
 
         except Exception as e:
-            logger.warning(f"Error obteniendo allocation: {e}")
+            logger.warning(f"Error obteniendo allocation basico: {e}")
+
+        # Sectores
+        try:
+            sector_data = fund.sector()
+            equity_sectors = sector_data.get('EQUITY', {}).get('fundPortfolio', {})
+
+            sectors = []
+            for key, weight in equity_sectors.items():
+                if key != 'portfolioDate' and weight and weight > 0.1:
+                    name = self.SECTOR_NAMES.get(key, key)
+                    sectors.append({'name': name, 'weight': weight})
+
+            # Ordenar por peso descendente
+            sectors.sort(key=lambda x: x['weight'], reverse=True)
+            allocation['sectors'] = sectors[:10]  # Top 10
+
+        except Exception as e:
+            logger.warning(f"Error obteniendo sectores: {e}")
+            allocation['sectors'] = []
+
+        # Paises
+        try:
+            regional = fund.regionalSectorIncludeCountries()
+            countries_data = regional.get('fundPortfolio', {}).get('countries', [])
+
+            countries = []
+            for item in countries_data:
+                name_key = item.get('name')
+                weight = item.get('percent', 0)
+                if weight and weight > 0.1:
+                    name = self.COUNTRY_NAMES.get(name_key, name_key)
+                    countries.append({'name': name, 'weight': weight})
+
+            # Ya vienen ordenados, tomamos top 10
+            allocation['countries'] = countries[:10]
+
+        except Exception as e:
+            logger.warning(f"Error obteniendo paises: {e}")
+            allocation['countries'] = []
+
+        # Regiones
+        try:
+            regional_basic = fund.regionalSector()
+            regions_data = regional_basic.get('fundPortfolio', {})
+
+            regions = {}
+            region_keys = [
+                'northAmerica', 'unitedKingdom', 'europeDeveloped',
+                'europeEmerging', 'japan', 'asiaDeveloped',
+                'asiaEmerging', 'latinAmerica', 'africaMiddleEast', 'australasia'
+            ]
+            for key in region_keys:
+                val = regions_data.get(key, 0)
+                if val and val > 0.1:
+                    regions[key] = val
+
+            allocation['regions'] = regions
+
+        except Exception as e:
+            logger.warning(f"Error obteniendo regiones: {e}")
+            allocation['regions'] = {}
 
         return allocation
 
     def _get_holdings_data(self, fund, top_n: int = 10) -> list:
-        """Extrae top holdings."""
+        """
+        Extrae top holdings.
+
+        NOTA: La API publica de Morningstar limita a Top 10 holdings.
+        """
         holdings = []
         try:
             holdings_df = fund.holdings(holdingType='equity')
 
             if isinstance(holdings_df, pd.DataFrame) and not holdings_df.empty:
+                total_available = len(holdings_df)
+
                 # Seleccionar top N
                 top = holdings_df.head(top_n)
 
@@ -324,6 +476,13 @@ class FundDataProvider:
                         'sector': row.get('sector'),
                     }
                     holdings.append(holding)
+
+                # Log si hay mas holdings disponibles
+                if total_available > top_n:
+                    logger.info(
+                        f"Holdings limitados a Top {top_n} "
+                        f"(disponibles: {total_available})"
+                    )
 
         except Exception as e:
             logger.warning(f"Error obteniendo holdings: {e}")
@@ -347,11 +506,8 @@ class FundDataProvider:
         """
         results = []
         try:
-            # mstarpy devuelve solo 1 fondo por defecto
-            # Para busquedas multiples usamos el API directamente
             fund = mstarpy.Funds(term, pageSize=page_size, language=self.language)
 
-            # Por ahora retornamos el fondo encontrado
             results.append({
                 'isin': fund.isin,
                 'name': fund.name,

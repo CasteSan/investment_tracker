@@ -468,33 +468,42 @@ with tab_catalog:
                     col_nav, col_bars = st.columns(2)
 
                     with col_nav:
-                        # Obtener historico NAV con fallback
+                        st.markdown("**Valor Liquidativo (NAV)**")
+
+                        # Obtener historico NAV con fallback defensivo
                         nav_df = pd.DataFrame()
                         nav_years = 3
+                        nav_loaded = False
 
                         # Intentar primero 3 años, luego 1 año si falla
                         for years_attempt in [3, 1]:
                             try:
                                 nav_df = service.get_fund_nav_history(fund.isin, years=years_attempt)
-                                if not nav_df.empty:
-                                    nav_years = years_attempt
-                                    break
+                                if nav_df is not None and not nav_df.empty:
+                                    if 'date' in nav_df.columns and 'nav' in nav_df.columns:
+                                        # Limpiar NaN values
+                                        nav_df = nav_df.dropna(subset=['nav'])
+                                        if len(nav_df) >= 2:
+                                            nav_years = years_attempt
+                                            nav_loaded = True
+                                            break
                             except Exception:
                                 continue
 
-                        if not nav_df.empty and 'date' in nav_df.columns and 'nav' in nav_df.columns:
-                            # Calcular rentabilidad del periodo
-                            nav_inicial = nav_df['nav'].iloc[0]
-                            nav_final = nav_df['nav'].iloc[-1]
-                            nav_return = ((nav_final - nav_inicial) / nav_inicial) * 100
-                            nav_color = '#28a745' if nav_return >= 0 else '#dc3545'
-
-                            # Titulo con KPI de rentabilidad
-                            st.markdown(
-                                f"**Valor Liquidativo (NAV)** "
-                                f"<span style='color:{nav_color}; font-weight:bold;'>({nav_return:+.1f}%)</span>",
-                                unsafe_allow_html=True
-                            )
+                        if nav_loaded:
+                            # Calcular rentabilidad del periodo (defensivo)
+                            try:
+                                nav_inicial = float(nav_df['nav'].iloc[0])
+                                nav_final = float(nav_df['nav'].iloc[-1])
+                                if nav_inicial > 0:
+                                    nav_return = ((nav_final - nav_inicial) / nav_inicial) * 100
+                                    nav_color = '#28a745' if nav_return >= 0 else '#dc3545'
+                                    st.markdown(
+                                        f"<span style='color:{nav_color}; font-size:18px; font-weight:bold;'>({nav_return:+.1f}%)</span>",
+                                        unsafe_allow_html=True
+                                    )
+                            except Exception:
+                                pass  # Si falla el cálculo, no mostramos KPI pero sí el gráfico
 
                             fig_nav = go.Figure()
                             fig_nav.add_trace(go.Scatter(
@@ -509,7 +518,7 @@ with tab_catalog:
                             ))
                             fig_nav.update_layout(
                                 margin=dict(t=10, b=40, l=50, r=10),
-                                height=380,
+                                height=500,
                                 xaxis_title="",
                                 yaxis_title="NAV",
                                 showlegend=False,
@@ -526,8 +535,7 @@ with tab_catalog:
                             )
                             st.caption(f"Ultimos {nav_years} {'ano' if nav_years == 1 else 'anos'} | Zoom: scroll o arrastra")
                         else:
-                            st.markdown("**Valor Liquidativo (NAV)**")
-                            st.info("Grafico NAV no disponible temporalmente (API Morningstar)")
+                            st.warning("Grafico historico no disponible temporalmente desde la fuente.")
 
                     with col_bars:
                         st.markdown("**Rentabilidad por Periodo**")
@@ -570,7 +578,7 @@ with tab_catalog:
                                     marker_color=colors,
                                     text=[f"{v:+.1f}%" for v in df_returns['Rentabilidad']],
                                     textposition=text_positions,
-                                    textfont=dict(size=18, family='Arial Black'),
+                                    textfont=dict(size=22, family='Arial Black'),
                                     insidetextanchor='middle',
                                     width=0.6
                                 )
@@ -580,11 +588,13 @@ with tab_catalog:
 
                             fig_bars.update_layout(
                                 margin=dict(t=30, b=40, l=50, r=10),
-                                height=380,
+                                height=500,
                                 xaxis_title="",
                                 yaxis_title="Rentabilidad %",
                                 showlegend=False,
-                                bargap=0.25
+                                bargap=0.25,
+                                yaxis=dict(tickfont=dict(size=14)),
+                                xaxis=dict(tickfont=dict(size=16))
                             )
                             fig_bars.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
                             st.plotly_chart(fig_bars, use_container_width=True)
@@ -644,13 +654,13 @@ with tab_catalog:
                                 )
                                 fig_tree.update_layout(
                                     margin=dict(t=10, b=10, l=10, r=10),
-                                    height=500,
+                                    height=600,
                                     coloraxis_showscale=False
                                 )
                                 fig_tree.update_traces(
                                     textinfo='label+percent entry',
-                                    textfont_size=14,
-                                    marker=dict(cornerradius=4)
+                                    textfont_size=18,
+                                    marker=dict(cornerradius=5)
                                 )
                                 st.plotly_chart(fig_tree, use_container_width=True)
                                 st.caption("*Limitado a Top 10 por API de Morningstar")
@@ -681,20 +691,20 @@ with tab_catalog:
                                 fig_sec = go.Figure(data=[go.Pie(
                                     labels=df_sec['name'],
                                     values=df_sec['weight'],
-                                    hole=0.4,
+                                    hole=0.35,
                                     text=labels_sec,
                                     textposition='outside',
                                     textinfo='text',
-                                    textfont=dict(size=13, family='Arial'),
+                                    textfont=dict(size=16, family='Arial'),
                                     insidetextorientation='horizontal',
                                     marker=dict(colors=px.colors.qualitative.Set2),
                                     hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
                                 )])
                                 fig_sec.update_layout(
-                                    margin=dict(t=30, b=30, l=40, r=40),
-                                    height=240,
+                                    margin=dict(t=40, b=40, l=60, r=60),
+                                    height=300,
                                     showlegend=False,
-                                    uniformtext_minsize=11,
+                                    uniformtext_minsize=14,
                                     uniformtext_mode='hide'
                                 )
                                 st.plotly_chart(fig_sec, use_container_width=True)
@@ -720,20 +730,20 @@ with tab_catalog:
                                 fig_cty = go.Figure(data=[go.Pie(
                                     labels=df_cty['name'],
                                     values=df_cty['weight'],
-                                    hole=0.4,
+                                    hole=0.35,
                                     text=labels_cty,
                                     textposition='outside',
                                     textinfo='text',
-                                    textfont=dict(size=13, family='Arial'),
+                                    textfont=dict(size=16, family='Arial'),
                                     insidetextorientation='horizontal',
                                     marker=dict(colors=px.colors.qualitative.Pastel),
                                     hovertemplate='%{label}<br>%{value:.1f}%<extra></extra>'
                                 )])
                                 fig_cty.update_layout(
-                                    margin=dict(t=30, b=30, l=40, r=40),
-                                    height=240,
+                                    margin=dict(t=40, b=40, l=60, r=60),
+                                    height=300,
                                     showlegend=False,
-                                    uniformtext_minsize=11,
+                                    uniformtext_minsize=14,
                                     uniformtext_mode='hide'
                                 )
                                 st.plotly_chart(fig_cty, use_container_width=True)

@@ -191,11 +191,13 @@ python -c "from src.core import is_cloud_environment; print(is_cloud_environment
 
 ## Próximo Paso
 
-**Fase 6: Deployment**
-- Configurar secrets en Streamlit Cloud Dashboard
-- Deploy del repositorio
-- Verificar funcionamiento en producción
-- Documentación de deployment
+**Fase 6: Deployment** - Ver `docs/DEPLOYMENT_GUIDE.md`
+
+Pasos resumidos:
+1. Crear proyecto en Supabase
+2. Ejecutar `python scripts/migrate_to_cloud.py --execute`
+3. Configurar secrets en Streamlit Cloud
+4. Deploy desde GitHub
 
 ## Arquitectura Híbrida
 

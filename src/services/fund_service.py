@@ -25,13 +25,23 @@ import pandas as pd
 
 try:
     from src.services.base import BaseService
-    from src.data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
+    from src.data.models import Fund, Category, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS, DEFAULT_CUSTOM_CATEGORIES
     from src.data.repositories.fund_repository import FundRepository
+    from src.providers.morningstar import (
+        FundDataProvider,
+        FundNotFoundError,
+        FundDataProviderError
+    )
     from src.logger import get_logger
 except ImportError:
     from services.base import BaseService
-    from data.models import Fund, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS
+    from data.models import Fund, Category, FUND_CATEGORIES, FUND_REGIONS, FUND_RISK_LEVELS, DEFAULT_CUSTOM_CATEGORIES
     from data.repositories.fund_repository import FundRepository
+    from providers.morningstar import (
+        FundDataProvider,
+        FundNotFoundError,
+        FundDataProviderError
+    )
     from logger import get_logger
 
 logger = get_logger(__name__)
@@ -61,11 +71,28 @@ class FundService(BaseService):
         logger.info("FundService inicializado")
 
     def _ensure_table_exists(self):
-        """Crea la tabla funds si no existe."""
+        """Crea las tablas funds y categories si no existen."""
         try:
             Fund.__table__.create(self.db.engine, checkfirst=True)
+            Category.__table__.create(self.db.engine, checkfirst=True)
+            # Poblar categorias iniciales si la tabla esta vacia
+            self._seed_categories()
         except Exception as e:
-            logger.warning(f"No se pudo verificar tabla funds: {e}")
+            logger.warning(f"No se pudo verificar tablas: {e}")
+
+    def _seed_categories(self):
+        """Inserta categorias por defecto si la tabla esta vacia."""
+        try:
+            count = self.db.session.query(Category).count()
+            if count == 0:
+                for name in DEFAULT_CUSTOM_CATEGORIES:
+                    cat = Category(name=name)
+                    self.db.session.add(cat)
+                self.db.session.commit()
+                logger.info(f"Insertadas {len(DEFAULT_CUSTOM_CATEGORIES)} categorias iniciales")
+        except Exception as e:
+            self.db.session.rollback()
+            logger.warning(f"No se pudieron insertar categorias: {e}")
 
     @property
     def repository(self) -> FundRepository:
@@ -78,6 +105,77 @@ class FundService(BaseService):
         """Cierra conexiones."""
         super().close()
         logger.debug("FundService cerrado")
+
+    # =========================================================================
+    # GESTION DE CATEGORIAS PERSONALIZADAS
+    # =========================================================================
+
+    def get_all_categories(self) -> List[str]:
+        """
+        Obtiene todas las categorias personalizadas de la BD.
+
+        Returns:
+            Lista de nombres de categorias ordenados alfabeticamente
+        """
+        try:
+            categories = self.db.session.query(Category).order_by(Category.name).all()
+            return [c.name for c in categories]
+        except Exception as e:
+            logger.warning(f"Error obteniendo categorias: {e}")
+            return DEFAULT_CUSTOM_CATEGORIES
+
+    def add_category(self, name: str) -> bool:
+        """
+        Añade una nueva categoria personalizada.
+
+        Args:
+            name: Nombre de la categoria (se normaliza)
+
+        Returns:
+            True si se creo, False si ya existia
+        """
+        name = name.strip()
+        if not name:
+            return False
+
+        try:
+            # Verificar si ya existe
+            existing = self.db.session.query(Category).filter_by(name=name).first()
+            if existing:
+                return False
+
+            cat = Category(name=name)
+            self.db.session.add(cat)
+            self.db.session.commit()
+            logger.info(f"Categoria creada: {name}")
+            return True
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Error creando categoria: {e}")
+            return False
+
+    def delete_category(self, name: str) -> bool:
+        """
+        Elimina una categoria personalizada.
+
+        Args:
+            name: Nombre de la categoria
+
+        Returns:
+            True si se elimino, False si no existia
+        """
+        try:
+            cat = self.db.session.query(Category).filter_by(name=name).first()
+            if cat:
+                self.db.session.delete(cat)
+                self.db.session.commit()
+                logger.info(f"Categoria eliminada: {name}")
+                return True
+            return False
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Error eliminando categoria: {e}")
+            return False
 
     # =========================================================================
     # BUSQUEDA Y FILTRADO
@@ -379,12 +477,79 @@ class FundService(BaseService):
         return formatted
 
     # =========================================================================
-    # IMPORTACION DE DATOS
+    # IMPORTACION DESDE MORNINGSTAR
+    # =========================================================================
+
+    def fetch_fund_preview(self, isin: str) -> Dict[str, Any]:
+        """
+        Obtiene datos de un fondo desde Morningstar sin guardarlo.
+
+        Util para mostrar una vista previa antes de guardar en BD.
+
+        Args:
+            isin: Codigo ISIN del fondo (ej: 'IE00B3RBWM25')
+
+        Returns:
+            Dict con datos del fondo desde Morningstar
+
+        Raises:
+            FundNotFoundError: Si el fondo no se encuentra
+            FundDataProviderError: Si hay error en la consulta
+        """
+        provider = FundDataProvider()
+        data = provider.get_fund_data(isin)
+        logger.info(f"Obtenidos datos de Morningstar para {isin}: {data.get('name')}")
+        return data
+
+    def fetch_and_import_fund(self, isin: str) -> Fund:
+        """
+        Obtiene datos de Morningstar y guarda el fondo en BD.
+
+        Orquesta el flujo completo:
+        1. Consulta datos de Morningstar via FundDataProvider
+        2. Mapea y guarda en BD via FundRepository
+
+        Args:
+            isin: Codigo ISIN del fondo (ej: 'IE00B3RBWM25')
+
+        Returns:
+            Fund guardado en BD
+
+        Raises:
+            FundNotFoundError: Si el fondo no se encuentra
+            FundDataProviderError: Si hay error en la consulta
+        """
+        # Obtener datos del provider
+        provider = FundDataProvider()
+        data = provider.get_fund_data(isin)
+
+        # Guardar en BD
+        fund = self.repository.upsert_from_provider(data)
+        logger.info(f"Fondo importado: {fund.isin} - {fund.name}")
+
+        return fund
+
+    def get_fund_nav_history(self, isin: str, years: int = 3) -> pd.DataFrame:
+        """
+        Obtiene historico de NAV desde Morningstar.
+
+        Args:
+            isin: Codigo ISIN del fondo
+            years: Anos de historia (default 3)
+
+        Returns:
+            DataFrame con columnas: date, nav, totalReturn
+        """
+        provider = FundDataProvider()
+        return provider.get_nav_history(isin, years=years)
+
+    # =========================================================================
+    # IMPORTACION DE DATOS (MANUAL)
     # =========================================================================
 
     def import_fund(self, fund_data: Dict[str, Any]) -> Fund:
         """
-        Importa o actualiza un fondo.
+        Importa o actualiza un fondo manualmente.
 
         Args:
             fund_data: Dict con datos del fondo (debe incluir 'isin')

@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import json
 import sys
 from pathlib import Path
 
@@ -18,6 +19,34 @@ from src.services.fund_service import FundService
 from src.providers.morningstar import FundNotFoundError, FundDataProviderError
 from src.data.models import FUND_RISK_LEVELS
 
+
+# =============================================================================
+# FUNCIONES CACHEADAS PARA RENDIMIENTO
+# =============================================================================
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_funds(db_path: str, _cache_key: str, **filters):
+    """
+    Obtiene fondos con cache de 5 minutos.
+    _cache_key se usa para invalidar la cache cuando hay cambios.
+    """
+    with FundService(db_path=db_path) as service:
+        return service.search_funds(**filters)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_fund_count(db_path: str, _cache_key: str):
+    """Verifica si hay fondos en el catalogo con cache."""
+    with FundService(db_path=db_path) as service:
+        return service.has_funds()
+
+
+def invalidate_fund_cache():
+    """Invalida la cache de fondos cuando hay cambios."""
+    get_cached_funds.clear()
+    get_cached_fund_count.clear()
+
+
 st.set_page_config(
     page_title="Catalogo de Fondos",
     page_icon="🔍",
@@ -28,6 +57,10 @@ st.title("🔍 Catalogo Inteligente de Fondos")
 
 # Obtener db_path de session_state (multi-portfolio)
 db_path = st.session_state.get('db_path')
+
+# Cache key para invalidacion
+if 'fund_cache_key' not in st.session_state:
+    st.session_state.fund_cache_key = "v1"
 
 # =============================================================================
 # TABS PRINCIPALES
@@ -261,6 +294,7 @@ with tab_import:
                             fund = service.fetch_and_import_fund(preview['isin'])
                             st.success(f"Fondo guardado: {fund.name}")
                             st.session_state.fund_preview = None
+                            invalidate_fund_cache()
                             st.rerun()
                     except Exception as e:
                         st.error(f"Error guardando: {e}")
@@ -434,61 +468,55 @@ with tab_catalog:
                     col_nav, col_bars = st.columns(2)
 
                     with col_nav:
-                        st.markdown("**Evolucion NAV (3 anos)**")
-                        # Obtener historico NAV
-                        try:
-                            nav_df = service.get_fund_nav_history(fund.isin, years=3)
-                            if not nav_df.empty:
-                                fig_nav = go.Figure()
-                                fig_nav.add_trace(go.Scatter(
-                                    x=nav_df['date'],
-                                    y=nav_df['nav'],
-                                    mode='lines',
-                                    fill='tozeroy',
-                                    fillcolor='rgba(0, 123, 255, 0.1)',
-                                    line=dict(color='#007bff', width=2),
-                                    name='NAV'
-                                ))
-                                fig_nav.update_layout(
-                                    margin=dict(t=10, b=40, l=50, r=10),
-                                    height=280,
-                                    xaxis_title="",
-                                    yaxis_title="NAV",
-                                    showlegend=False,
-                                    hovermode='x unified'
-                                )
-                                st.plotly_chart(fig_nav, use_container_width=True)
-                            else:
-                                st.info("Sin datos de NAV historico")
-                        except Exception:
-                            st.info("Sin datos de NAV historico")
+                        st.markdown("**Evolucion NAV**")
+                        # Obtener historico NAV con fallback
+                        nav_df = pd.DataFrame()
+                        nav_years = 3
+
+                        # Intentar primero 3 años, luego 1 año si falla
+                        for years_attempt in [3, 1]:
+                            try:
+                                nav_df = service.get_fund_nav_history(fund.isin, years=years_attempt)
+                                if not nav_df.empty:
+                                    nav_years = years_attempt
+                                    break
+                            except Exception:
+                                continue
+
+                        if not nav_df.empty and 'date' in nav_df.columns and 'nav' in nav_df.columns:
+                            fig_nav = go.Figure()
+                            fig_nav.add_trace(go.Scatter(
+                                x=nav_df['date'],
+                                y=nav_df['nav'],
+                                mode='lines',
+                                fill='tozeroy',
+                                fillcolor='rgba(0, 123, 255, 0.1)',
+                                line=dict(color='#007bff', width=2),
+                                name='NAV'
+                            ))
+                            fig_nav.update_layout(
+                                margin=dict(t=10, b=40, l=50, r=10),
+                                height=280,
+                                xaxis_title="",
+                                yaxis_title="NAV",
+                                showlegend=False,
+                                hovermode='x unified'
+                            )
+                            st.plotly_chart(fig_nav, use_container_width=True)
+                            st.caption(f"Ultimos {nav_years} {'ano' if nav_years == 1 else 'anos'}")
+                        else:
+                            st.info("Grafico NAV no disponible temporalmente (API Morningstar)")
 
                     with col_bars:
                         st.markdown("**Rentabilidad por Periodo**")
-                        # Preparar datos de rentabilidad
+                        # Preparar datos de rentabilidad usando datos guardados en BD
                         returns_data = []
                         periods = [
-                            ('1M', fund.return_ytd),  # Usamos YTD como proxy si no hay 1M
-                            ('3M', None),
                             ('YTD', fund.return_ytd),
                             ('1A', fund.return_1y),
                             ('3A', fund.return_3y),
                             ('5A', fund.return_5y),
                         ]
-
-                        # Intentar obtener datos frescos del provider
-                        try:
-                            fresh_data = service.fetch_fund_preview(fund.isin)
-                            periods = [
-                                ('1M', fresh_data.get('return_1m')),
-                                ('3M', fresh_data.get('return_3m')),
-                                ('YTD', fresh_data.get('return_ytd')),
-                                ('1A', fresh_data.get('return_1y')),
-                                ('3A', fresh_data.get('return_3y')),
-                                ('5A', fresh_data.get('return_5y')),
-                            ]
-                        except Exception:
-                            pass
 
                         for label, val in periods:
                             if val is not None:
@@ -528,104 +556,140 @@ with tab_catalog:
                     # -----------------------------------------------------------------
                     # FILA 3: Treemap Holdings + Donuts Sector/Pais
                     # -----------------------------------------------------------------
-                    allocation = fund.get_asset_allocation()
-                    holdings = fund.get_top_holdings()
+                    # Obtener datos de allocation con parseo robusto
+                    allocation_raw = fund.asset_allocation
+                    if isinstance(allocation_raw, str) and allocation_raw:
+                        try:
+                            allocation = json.loads(allocation_raw)
+                        except json.JSONDecodeError:
+                            allocation = {}
+                    elif isinstance(allocation_raw, dict):
+                        allocation = allocation_raw
+                    else:
+                        allocation = fund.get_asset_allocation() or {}
+
+                    # Obtener holdings con parseo robusto
+                    holdings_raw = fund.top_holdings
+                    if isinstance(holdings_raw, str) and holdings_raw:
+                        try:
+                            holdings = json.loads(holdings_raw)
+                        except json.JSONDecodeError:
+                            holdings = []
+                    elif isinstance(holdings_raw, list):
+                        holdings = holdings_raw
+                    else:
+                        holdings = fund.get_top_holdings() or []
 
                     col_tree, col_donuts = st.columns([1, 1])
 
                     with col_tree:
                         st.markdown("**Top 10 Holdings (Treemap)**")
-                        if holdings:
+                        if holdings and len(holdings) > 0:
                             df_holdings = pd.DataFrame(holdings)
-                            # Crear treemap
-                            fig_tree = px.treemap(
-                                df_holdings,
-                                path=['name'],
-                                values='weight',
-                                color='weight',
-                                color_continuous_scale='Blues',
-                                hover_data={'weight': ':.2f'}
-                            )
-                            fig_tree.update_layout(
-                                margin=dict(t=10, b=10, l=10, r=10),
-                                height=320,
-                                coloraxis_showscale=False
-                            )
-                            fig_tree.update_traces(
-                                textinfo='label+percent entry',
-                                textfont_size=11
-                            )
-                            st.plotly_chart(fig_tree, use_container_width=True)
-                            st.caption("*Limitado a Top 10 por API de Morningstar")
+                            if 'name' in df_holdings.columns and 'weight' in df_holdings.columns:
+                                # Crear treemap
+                                fig_tree = px.treemap(
+                                    df_holdings,
+                                    path=['name'],
+                                    values='weight',
+                                    color='weight',
+                                    color_continuous_scale='Blues',
+                                    hover_data={'weight': ':.2f'}
+                                )
+                                fig_tree.update_layout(
+                                    margin=dict(t=10, b=10, l=10, r=10),
+                                    height=320,
+                                    coloraxis_showscale=False
+                                )
+                                fig_tree.update_traces(
+                                    textinfo='label+percent entry',
+                                    textfont_size=11
+                                )
+                                st.plotly_chart(fig_tree, use_container_width=True)
+                                st.caption("*Limitado a Top 10 por API de Morningstar")
+                            else:
+                                st.info("Formato de holdings invalido")
                         else:
-                            st.info("Sin datos de holdings")
+                            st.info("Sin datos de holdings. Pulsa 'Actualizar datos'")
 
                     with col_donuts:
                         # Dos donuts: Sector y Pais
-                        sectors = allocation.get('sectors', []) if allocation else []
-                        countries = allocation.get('countries', []) if allocation else []
+                        sectors = allocation.get('sectors', []) if isinstance(allocation, dict) else []
+                        countries = allocation.get('countries', []) if isinstance(allocation, dict) else []
 
                         sub1, sub2 = st.columns(2)
 
                         with sub1:
                             st.markdown("**Sectores**")
-                            if sectors:
+                            if sectors and len(sectors) > 0:
                                 df_sec = pd.DataFrame(sectors[:8])
-                                fig_sec = px.pie(
-                                    df_sec,
-                                    values='weight',
-                                    names='name',
-                                    hole=0.5,
-                                    color_discrete_sequence=px.colors.qualitative.Set3
-                                )
-                                fig_sec.update_layout(
-                                    margin=dict(t=5, b=5, l=5, r=5),
-                                    height=150,
-                                    showlegend=False
-                                )
-                                fig_sec.update_traces(textposition='inside', textinfo='percent')
-                                st.plotly_chart(fig_sec, use_container_width=True)
+                                if 'name' in df_sec.columns and 'weight' in df_sec.columns:
+                                    fig_sec = px.pie(
+                                        df_sec,
+                                        values='weight',
+                                        names='name',
+                                        hole=0.5,
+                                        color_discrete_sequence=px.colors.qualitative.Set3
+                                    )
+                                    fig_sec.update_layout(
+                                        margin=dict(t=5, b=5, l=5, r=5),
+                                        height=150,
+                                        showlegend=False
+                                    )
+                                    fig_sec.update_traces(textposition='inside', textinfo='percent')
+                                    st.plotly_chart(fig_sec, use_container_width=True)
+                                else:
+                                    st.caption("Formato invalido")
                             else:
-                                st.info("Sin datos")
+                                st.caption("Sin datos")
 
                         with sub2:
                             st.markdown("**Paises**")
-                            if countries:
+                            if countries and len(countries) > 0:
                                 df_cty = pd.DataFrame(countries[:8])
-                                fig_cty = px.pie(
-                                    df_cty,
-                                    values='weight',
-                                    names='name',
-                                    hole=0.5,
-                                    color_discrete_sequence=px.colors.qualitative.Pastel
-                                )
-                                fig_cty.update_layout(
-                                    margin=dict(t=5, b=5, l=5, r=5),
-                                    height=150,
-                                    showlegend=False
-                                )
-                                fig_cty.update_traces(textposition='inside', textinfo='percent')
-                                st.plotly_chart(fig_cty, use_container_width=True)
+                                if 'name' in df_cty.columns and 'weight' in df_cty.columns:
+                                    fig_cty = px.pie(
+                                        df_cty,
+                                        values='weight',
+                                        names='name',
+                                        hole=0.5,
+                                        color_discrete_sequence=px.colors.qualitative.Pastel
+                                    )
+                                    fig_cty.update_layout(
+                                        margin=dict(t=5, b=5, l=5, r=5),
+                                        height=150,
+                                        showlegend=False
+                                    )
+                                    fig_cty.update_traces(textposition='inside', textinfo='percent')
+                                    st.plotly_chart(fig_cty, use_container_width=True)
+                                else:
+                                    st.caption("Formato invalido")
                             else:
-                                st.info("Sin datos")
+                                st.caption("Sin datos")
 
                         # Tabla resumen debajo de los donuts
                         st.markdown("**Desglose detallado**")
                         tab_sec, tab_cty = st.tabs(["Sectores", "Paises"])
 
                         with tab_sec:
-                            if sectors:
+                            if sectors and len(sectors) > 0:
                                 df_sec_table = pd.DataFrame(sectors)
-                                df_sec_table['weight'] = df_sec_table['weight'].apply(lambda x: f"{x:.2f}%")
-                                df_sec_table.columns = ['Sector', 'Peso']
-                                st.dataframe(df_sec_table, hide_index=True, height=150)
+                                if 'weight' in df_sec_table.columns:
+                                    df_sec_table['weight'] = df_sec_table['weight'].apply(lambda x: f"{x:.2f}%")
+                                    df_sec_table.columns = ['Sector', 'Peso']
+                                    st.dataframe(df_sec_table, hide_index=True, height=150)
+                            else:
+                                st.caption("Pulsa 'Actualizar datos' para cargar sectores")
 
                         with tab_cty:
-                            if countries:
+                            if countries and len(countries) > 0:
                                 df_cty_table = pd.DataFrame(countries[:10])
-                                df_cty_table['weight'] = df_cty_table['weight'].apply(lambda x: f"{x:.2f}%")
-                                df_cty_table.columns = ['Pais', 'Peso']
-                                st.dataframe(df_cty_table, hide_index=True, height=150)
+                                if 'weight' in df_cty_table.columns:
+                                    df_cty_table['weight'] = df_cty_table['weight'].apply(lambda x: f"{x:.2f}%")
+                                    df_cty_table.columns = ['Pais', 'Peso']
+                                    st.dataframe(df_cty_table, hide_index=True, height=150)
+                            else:
+                                st.caption("Pulsa 'Actualizar datos' para cargar paises")
 
                     # -----------------------------------------------------------------
                     # INFO ADICIONAL + ACCIONES
@@ -659,6 +723,7 @@ with tab_catalog:
                                 try:
                                     updated = service.fetch_and_import_fund(fund.isin)
                                     st.success(f"Datos actualizados")
+                                    invalidate_fund_cache()
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error: {e}")
@@ -666,6 +731,7 @@ with tab_catalog:
                         if st.button("🗑️ Eliminar", type="secondary", use_container_width=True):
                             service.repository.delete_by_isin(fund.isin)
                             st.success(f"Fondo {fund.isin} eliminado")
+                            invalidate_fund_cache()
                             st.rerun()
 
             # Exportar

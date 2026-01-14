@@ -16,13 +16,13 @@ streamlit run app/main.py
 uvicorn api.main:app --reload
 # Documentacion: http://localhost:8000/docs
 
-# Tests con pytest (138 tests)
+# Tests con pytest
 python -m pytest tests/unit/ -v           # Todos los unitarios
 python -m pytest tests/unit/ -q           # Modo rapido
-python -m pytest tests/unit/test_fund_service.py -v  # Archivo especifico
 
-# Migraciones
-python -m src.data.migrations.001_create_funds_table  # Crear tabla funds
+# Migraciones (multi-portfolio)
+python scripts/apply_migrations.py        # Aplica a todas las BDs
+python scripts/apply_migrations.py --check  # Solo verificar
 
 # Instalar dependencias
 pip install -r requirements.txt
@@ -64,26 +64,31 @@ investment_tracker/
 ├── app/                    # UI Streamlit
 │   ├── pages/              # 8 paginas
 │   └── components/         # Componentes reutilizables
+├── data/
+│   └── portfolios/         # BDs por cartera (multi-portfolio)
 ├── docs/                   # Documentacion
 │   └── architecture/       # Plan de escalabilidad consolidado
-├── scripts/                # Scripts utilitarios
+├── scripts/
+│   └── apply_migrations.py # Migraciones multi-BD
 ├── src/                    # Codigo fuente
 │   ├── services/           # Capa de servicios
 │   │   ├── base.py         # BaseService
 │   │   ├── portfolio_service.py
-│   │   └── fund_service.py
+│   │   └── fund_service.py # + gestion de categorias
+│   ├── providers/          # APIs externas
+│   │   └── morningstar.py  # FundDataProvider (mstarpy)
 │   ├── core/               # Logica pura
 │   │   └── analytics/      # Metricas (Sharpe, Beta, VaR)
 │   ├── data/               # Capa de datos
 │   │   ├── database.py
-│   │   ├── models.py
+│   │   ├── models.py       # Fund, Category
 │   │   ├── repositories/
 │   │   └── migrations/
 │   ├── portfolio.py        # Calculos de cartera
 │   ├── tax_calculator.py   # Calculos fiscales
 │   ├── dividends.py        # Gestion dividendos
 │   └── database.py         # [SHIM] Compatibilidad
-├── tests/                  # Tests pytest (138)
+├── tests/                  # Tests pytest
 │   ├── conftest.py
 │   ├── unit/               # Tests unitarios
 │   └── scripts/            # Tests de scripts
@@ -130,14 +135,17 @@ with FundService() as service:
         order_desc=True
     )
 
+    # Importar desde Morningstar (v1.3.0)
+    preview = service.fetch_fund_preview('IE00B3RBWM25')  # Solo preview
+    fund = service.fetch_and_import_fund('IE00B3RBWM25')  # Guarda en BD
+
+    # Categorias dinamicas (v1.3.0)
+    categories = service.get_all_categories()  # Lista desde BD
+    service.add_category('RV Small Caps')      # Crear nueva
+
     # Helpers
     low_cost = service.find_low_cost_funds(max_ter=0.5)
     top_rated = service.find_top_rated_funds(min_rating=5)
-
-    # Importar fondos
-    service.import_funds_bulk([
-        {'isin': 'IE00B3RBWM25', 'name': 'Vanguard...', 'ter': 0.22},
-    ])
 ```
 
 ## Metricas Analytics (src/core/analytics/)
@@ -246,15 +254,18 @@ db.close()
 ### yfinance y fondos europeos (ISINs)
 
 **Problema:** yfinance NO tiene datos de la mayoria de fondos mutuos europeos.
-ISINs como `IE00BLP5S460`, `LU0996182563` no se encuentran.
 
-**Comportamiento actual:**
-- El sistema detecta si es ISIN (formato: 2 letras + 10 alfanumericos)
-- Intenta buscar el ticker correspondiente
-- Si falla, cachea el ISIN para no reintentar
-- Log: "ISIN X: sin datos en yfinance (fondo no disponible)"
+**Solucion (v1.3.0):** Usar el Catalogo de Fondos con Morningstar:
+- `FundService.fetch_and_import_fund(isin)` obtiene datos de Morningstar
+- Incluye: rentabilidades, volatilidad, holdings, sectores, paises
+- Los fondos importados se guardan en la BD local
 
-**Solucion futura:** Integrar API alternativa (Morningstar, Investing.com)
+### Morningstar API (mstarpy)
+
+**Limitaciones:**
+- API de timeSeries puede dar error 401 (rate limiting)
+- El grafico NAV tiene fallback defensivo
+- Algunos fondos no tienen todos los campos
 
 ## Errores a evitar
 
@@ -266,9 +277,12 @@ ISINs como `IE00BLP5S460`, `LU0996182563` no se encuentran.
 
 ## Estado del proyecto
 
-**Version:** 1.0.0 (ver CHANGELOG.md)
-**Plan de escalabilidad:** 8/8 sesiones completadas ✅
-**Limpieza:** Proyecto profesionalizado (39 archivos obsoletos eliminados)
+**Version:** 1.3.0 (ver CHANGELOG.md)
+**Features principales:**
+- Multi-portfolio (v1.2.0)
+- Catalogo Inteligente de Fondos con Morningstar (v1.3.0)
+- Categorias personalizadas dinamicas (v1.3.0)
+- Dashboard profesional por fondo (v1.3.0)
 
 ## API FastAPI (api/)
 

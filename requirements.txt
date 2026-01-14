@@ -3,6 +3,7 @@ python-dateutil>=2.8.2
 
 # Database
 SQLAlchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL driver (cloud)
 
 # Data manipulation
 pandas>=2.0.0

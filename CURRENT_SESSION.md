@@ -3,7 +3,7 @@
 ## Resumen
 
 **Version:** 1.3.0
-**Estado:** Migración Cloud en progreso (Fases 1-2 completadas)
+**Estado:** Migración Cloud en progreso (Fases 1-3 completadas)
 
 ## Progreso Cloud Migration
 
@@ -11,12 +11,39 @@
 |------|--------|-------------|
 | Fase 1: Infraestructura Base | ✅ Completada | Environment detection + ProfileManager abstraction |
 | Fase 2: Modelo de Datos Unificado | ✅ Completada | Portfolio model + portfolio_id |
-| Fase 3: Soporte PostgreSQL | ⏳ Pendiente | DATABASE_URL en Database class |
+| Fase 3: Soporte PostgreSQL | ✅ Completada | DATABASE_URL en Database class |
 | Fase 4: Script Migración | ⏳ Pendiente | SQLite → PostgreSQL |
 | Fase 5: Autenticación | ⏳ Pendiente | AuthService + Login UI |
 | Fase 6: Deployment | ⏳ Pendiente | Streamlit Cloud |
 
-## Cambios Fase 2 (Actual)
+## Cambios Fase 3 (Actual)
+
+### Archivos Nuevos
+- `tests/unit/test_database_postgres.py` - 13 tests para soporte PostgreSQL
+
+### Archivos Modificados
+- `requirements.txt` - Añadido psycopg2-binary
+- `src/data/database.py` - Soporte dual SQLite/PostgreSQL
+
+### Uso PostgreSQL
+
+```python
+from src.data import Database
+
+# SQLite (local) - comportamiento por defecto
+db = Database(db_path='data/test.db')
+
+# PostgreSQL (cloud) - detecta DATABASE_URL
+import os
+os.environ['DATABASE_URL'] = 'postgresql://user:pass@host:5432/db'
+db = Database()  # Usa PostgreSQL automáticamente
+
+# Verificar modo
+db.is_postgres()  # True/False
+db.is_sqlite()    # True/False
+```
+
+## Cambios Fase 2
 
 ### Archivos Nuevos
 - `src/data/migrations/003_add_portfolio_support.py` - Migración para portfolios
@@ -90,22 +117,21 @@ investment_tracker/
 ## Tests
 
 ```
-221 passed, 2 skipped in 28s
+234 passed, 2 skipped (236 total)
+
+Nuevos tests (Fase 3):
+- test_database_postgres.py: 13 tests
+  - TestDatabaseModeDetection: 5 tests
+  - TestDatabaseStatsWithMode: 2 tests
+  - TestDatabaseMethodsCompatibility: 3 tests
+  - TestDatabaseContextManager: 1 test
+  - TestDatabaseInitializationEdgeCases: 2 tests
 
 Nuevos tests (Fase 2):
 - test_portfolio_model.py: 14 tests
-  - TestPortfolioModel: 4 tests
-  - TestTransactionPortfolioId: 4 tests
-  - TestDividendPortfolioId: 4 tests
-  - TestMigrationScript: 2 tests
 
 Nuevos tests (Fase 1):
 - test_environment.py: 25 tests
-  - TestEnvironmentDetection: 4 tests
-  - TestCloudProfileManager: 14 tests
-  - TestProfileManagerProtocol: 2 tests
-  - TestGetProfileManagerFactory: 4 tests
-  - TestLocalProfileManagerCanSwitch: 1 test
 ```
 
 ## Comandos
@@ -123,11 +149,12 @@ python -c "from src.core import is_cloud_environment; print(is_cloud_environment
 
 ## Próximo Paso
 
-**Fase 3: Soporte PostgreSQL**
-- Añadir `psycopg2-binary` a requirements
-- Modificar `Database` para detectar `DATABASE_URL`
-- Ajustar tipos de datos para compatibilidad SQLite/Postgres
-- Tests con ambos backends
+**Fase 4: Script de Migración**
+- Crear `scripts/migrate_to_cloud.py`
+- Leer todos los SQLite en `data/portfolios/`
+- Crear portfolios en PostgreSQL
+- Migrar transacciones/dividendos con portfolio_id
+- Verificar integridad de datos
 
 ## Arquitectura Híbrida
 

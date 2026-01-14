@@ -264,29 +264,71 @@ class Database:
         db.close()
     """
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, database_url: str = None):
         """
         Inicializa la conexión a la base de datos.
 
+        Soporta dos modos:
+        - SQLite (local): Usa db_path para archivo local
+        - PostgreSQL (cloud): Usa DATABASE_URL del entorno o parámetro
+
         Args:
-            db_path: Ruta al archivo de base de datos. Si es None, usa la ruta por defecto.
+            db_path: Ruta al archivo SQLite. Ignorado si hay DATABASE_URL.
+            database_url: URL de conexión PostgreSQL. Si es None, busca en entorno.
+
+        Prioridad de conexión:
+        1. database_url (parámetro)
+        2. DATABASE_URL (variable de entorno)
+        3. db_path (SQLite local)
         """
-        if db_path is None:
-            db_path = DEFAULT_DB_PATH
+        # Detectar modo de conexión
+        self._database_url = database_url or os.getenv('DATABASE_URL')
+        self._is_postgres = self._database_url is not None
 
-        self.db_path = Path(db_path)
+        if self._is_postgres:
+            # Modo PostgreSQL (Cloud)
+            self.db_path = None
+            logger.debug("Conectando a PostgreSQL (cloud mode)")
 
-        # Crear directorio si no existe
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            # Crear engine PostgreSQL
+            self.engine = create_engine(
+                self._database_url,
+                echo=False,
+                pool_pre_ping=True,  # Verificar conexión antes de usar
+                pool_recycle=300,    # Reciclar conexiones cada 5 min
+            )
+        else:
+            # Modo SQLite (Local)
+            if db_path is None:
+                db_path = DEFAULT_DB_PATH
 
-        # Crear engine y sesión
-        logger.debug(f"Conectando a base de datos: {self.db_path}")
-        self.engine = create_engine(f'sqlite:///{self.db_path}', echo=False)
+            self.db_path = Path(db_path)
+
+            # Crear directorio si no existe
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            logger.debug(f"Conectando a SQLite: {self.db_path}")
+            self.engine = create_engine(f'sqlite:///{self.db_path}', echo=False)
+
+        # Crear tablas si no existen
         Base.metadata.create_all(self.engine)
 
+        # Crear sesión
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-        logger.info(f"Base de datos inicializada: {self.db_path.name}")
+
+        if self._is_postgres:
+            logger.info("Base de datos PostgreSQL inicializada (cloud mode)")
+        else:
+            logger.info(f"Base de datos SQLite inicializada: {self.db_path.name}")
+
+    def is_postgres(self) -> bool:
+        """Indica si está conectado a PostgreSQL."""
+        return self._is_postgres
+
+    def is_sqlite(self) -> bool:
+        """Indica si está conectado a SQLite."""
+        return not self._is_postgres
 
     def close(self):
         """Cierra la conexión a la base de datos"""
@@ -839,14 +881,21 @@ class Database:
 
     def get_database_stats(self) -> Dict:
         """Retorna estadísticas de la base de datos"""
-        return {
+        stats = {
             'total_transactions': self.session.query(Transaction).count(),
             'total_dividends': self.session.query(Dividend).count(),
             'total_benchmarks': self.session.query(BenchmarkData).count(),
             'total_snapshots': self.session.query(PortfolioSnapshot).count(),
             'unique_tickers': self.session.query(Transaction.ticker).distinct().count(),
-            'db_path': str(self.db_path)
+            'is_postgres': self._is_postgres,
         }
+        if self._is_postgres:
+            stats['db_type'] = 'PostgreSQL'
+            stats['db_path'] = 'cloud'
+        else:
+            stats['db_type'] = 'SQLite'
+            stats['db_path'] = str(self.db_path)
+        return stats
 
     def get_all_tickers(self) -> List[str]:
         """Retorna lista de todos los tickers únicos"""
